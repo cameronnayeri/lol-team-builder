@@ -249,6 +249,10 @@
         .draft-roster-champ.unavailable { pointer-events:none; }
         .draft-roster-champ.unavailable img { filter:grayscale(100%) brightness(.25); opacity:.5; }
         .draft-roster-champ.staged img { border-color:#c89b3c; box-shadow:0 0 6px #c89b3c88; }
+        #lockInBar { display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px 12px; background:#0d0d0d; border-bottom:1px solid #2a2a2a; flex-shrink:0; }
+        #lockInChampName { font-size:15px; font-weight:700; color:#c89b3c; letter-spacing:2px; text-transform:uppercase; }
+        #lockInBtn { width:100%; padding:14px 0; background:#c89b3c22; border:2px solid #c89b3c; border-radius:3px; color:#f0c060; font-size:16px; font-weight:700; letter-spacing:3px; text-transform:uppercase; cursor:pointer; transition:background .15s, color .15s; }
+        #lockInBtn:hover { background:#c89b3c55; color:#fff; }
         .draft-pick-cell.preview img { opacity:.45; }
         .draft-pick-cell.preview { border-style:dashed; }
         .draft-pool-champ.available { cursor:pointer; }
@@ -370,12 +374,15 @@
                 <div class="draft-status-bar">
                     <span class="draft-turn-label" id="draftTurnLabel">Waiting…</span>
                     <div class="draft-action-btns">
-                        <button class="draft-btn primary" id="lockInBtn" onclick="draftLockIn()" disabled>Lock In</button>
                         <button class="draft-btn primary" id="gameStartBtn" onclick="commitGame()" disabled>Game Start</button>
                     </div>
                 </div>
 
                 <div class="draft-picker">
+                    <div id="lockInBar" style="display:none">
+                        <div id="lockInChampName"></div>
+                        <button id="lockInBtn" onclick="draftLockIn()">LOCK IN</button>
+                    </div>
                     <input type="text" class="draft-pick-search" id="draftSearch" placeholder="Search champion…" oninput="renderDraftPicker()">
                     <div class="draft-champ-grid" id="draftChampGrid"></div>
                 </div>
@@ -886,7 +893,7 @@ function draftStageChamp(champId) {
     if (draftStaged === champId) {
         draftStaged = null;
         draftHoverPreview = null;
-        document.getElementById('lockInBtn').disabled = true;
+        renderDraftStatus();
         renderDraftPicker();
         renderDraftBoard();
         renderDraftPools();
@@ -899,7 +906,7 @@ function draftStageChamp(champId) {
     // Clear search
     const s = document.getElementById('draftSearch');
     if (s) s.value = '';
-    document.getElementById('lockInBtn').disabled = false;
+    renderDraftStatus();
     renderDraftPicker();
     renderDraftBoard();
     renderDraftPools();
@@ -910,12 +917,9 @@ function draftStageChamp(champId) {
 function draftLockIn() {
     const id = draftStaged;
     if (!id || draft.cursor >= 20) return;
-    if (unavailableChamps().has(id)) return; // shouldn't happen, safety check
-    // Remove staged from unavail set before committing
-    const wasStaged = draftStaged;
     draftStaged = null;
     draftHoverPreview = null;
-    draft.slots[draft.cursor] = wasStaged;
+    draft.slots[draft.cursor] = id;
     draft.cursor++;
     scheduleSave();
     renderDraftTab();
@@ -1108,29 +1112,34 @@ function renderDraftBoard() {
 }
 
 function renderDraftStatus() {
-    const cursor = draft.cursor;
+    const cursor       = draft.cursor;
     const gameStartBtn = document.getElementById('gameStartBtn');
-    const lockInBtn    = document.getElementById('lockInBtn');
+    const lockInBar    = document.getElementById('lockInBar');
+    const lockInName   = document.getElementById('lockInChampName');
+
+    // Lock In bar visibility
+    if (draftStaged && cursor < 20) {
+        lockInBar.style.display = 'flex';
+        lockInName.textContent  = getChamp(draftStaged)?.name || draftStaged;
+    } else {
+        lockInBar.style.display = 'none';
+    }
 
     if (cursor >= 20) {
         document.getElementById('draftTurnLabel').innerHTML =
             'Draft complete — ready to <span>start the game</span>';
         gameStartBtn.disabled = false;
-        lockInBtn.disabled    = true;
         return;
     }
 
     gameStartBtn.disabled = true;
-    lockInBtn.disabled    = !draftStaged;
     const step       = DRAFT_SEQ[cursor];
     const isHomeBlue = draft.blueSide === 'home';
     const team       = (step.t === 'blue') === isHomeBlue ? 'HOME' : 'AWAY';
     const color      = step.t === 'blue' ? '#4e9eff' : '#ff5555';
     const action     = step.a === 'ban' ? 'banning' : 'picking';
-    const stagedName = draftStaged ? (getChamp(draftStaged)?.name || '') : '';
     document.getElementById('draftTurnLabel').innerHTML =
         `<span style="color:${color};font-weight:700">${team}</span> is ${action}
-         ${stagedName ? `<span style="color:#c89b3c;margin-left:8px">— ${stagedName} staged</span>` : ''}
          <button class="draft-btn" style="margin-left:10px" onclick="draftUndo()">↩ Undo</button>`;
 }
 
