@@ -638,6 +638,7 @@ function startListener() {
     return new Promise((resolve) => {
         let ready = false;
         DOC.onSnapshot(doc => {
+            console.log('[Firebase] Snapshot received, exists:', doc.exists);
             const data = doc.data();
             if (data) {
                 const incoming = JSON.stringify(data);
@@ -655,7 +656,11 @@ function startListener() {
                 }
             }
             if (!ready) { ready = true; resolve(); }
-        }, () => resolve()); // resolve on error so init doesn't hang
+        }, (err) => {
+            console.error('[Firebase] Listener error — code:', err.code);
+            console.error('[Firebase] Listener error — message:', err.message);
+            resolve();
+        });
     });
 }
 
@@ -668,6 +673,7 @@ function scheduleSave() {
 async function saveToDB() {
     try {
         setStatus('saving', 'Saving…');
+        console.log('[Firebase] Attempting save...');
         const payload = {
             members: state.members.map(m => ({ ...m, pool: sortedPool(m.pool) })),
             comps:   state.comps,
@@ -675,8 +681,12 @@ async function saveToDB() {
         };
         lastSavedJSON = JSON.stringify(payload); // pre-mark so snapshot echo is ignored
         await DOC.set(payload);
+        console.log('[Firebase] Save successful');
         setStatus('saved', 'Saved ✓');
-    } catch {
+    } catch(err) {
+        console.error('[Firebase] Save failed — code:', err.code);
+        console.error('[Firebase] Save failed — message:', err.message);
+        console.error('[Firebase] Full error:', err);
         setStatus('error', 'Save failed');
     }
 }
