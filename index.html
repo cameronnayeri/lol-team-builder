@@ -248,6 +248,15 @@
         .draft-roster-champ:hover:not(.unavailable) img { border-color:#aaa; filter:brightness(1.2); }
         .draft-roster-champ.unavailable { pointer-events:none; }
         .draft-roster-champ.unavailable img { filter:grayscale(100%) brightness(.25); opacity:.5; }
+        .draft-roster-champ.staged img { border-color:#c89b3c; box-shadow:0 0 6px #c89b3c88; }
+        .draft-pick-cell.preview img { opacity:.45; }
+        .draft-pick-cell.preview { border-style:dashed; }
+        .draft-pool-champ.available { cursor:pointer; }
+        .draft-pool-champ.available:hover img { filter:brightness(1.15); border-color:#aaa; }
+        .draft-pool-champ.staged-pool img { border-color:#c89b3c !important; box-shadow:0 0 6px #c89b3c88; }
+        .draft-comp-champ-clickable { cursor:pointer; }
+        .draft-comp-champ-clickable:hover img { filter:brightness(1.15); border-color:#aaa; }
+        .draft-comp-champ-clickable.staged-comp img { border-color:#c89b3c !important; box-shadow:0 0 6px #c89b3c88; }
         .draft-roster-champ .tip { bottom:calc(100% + 2px); }
         .draft-roster-champ:hover .tip { opacity:1; }
 
@@ -361,6 +370,7 @@
                 <div class="draft-status-bar">
                     <span class="draft-turn-label" id="draftTurnLabel">Waiting…</span>
                     <div class="draft-action-btns">
+                        <button class="draft-btn primary" id="lockInBtn" onclick="draftLockIn()" disabled>Lock In</button>
                         <button class="draft-btn primary" id="gameStartBtn" onclick="commitGame()" disabled>Game Start</button>
                     </div>
                 </div>
@@ -481,6 +491,8 @@ let dragData        = null;
 let tagPickerTarget = null;
 let saveTimer       = null;
 let lastSavedJSON   = '';
+let draftStaged     = null; // champion staged for lock-in (click to set)
+let draftHoverPreview = null; // transient mouse hover preview
 
 // ─── Apply Firebase data ──────────────────────────────────────────────────────
 function applyRecord(data) {
@@ -801,6 +813,7 @@ function renderMembers() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function startSeries(format) {
+    draftStaged = null; draftHoverPreview = null;
     draft.active      = true;
     draft.format      = format;
     draft.currentGame = 1;
@@ -815,6 +828,7 @@ function startSeries(format) {
 
 function endSeries() {
     if (!confirm('End the series? All draft progress will be cleared.')) return;
+    draftStaged = null; draftHoverPreview = null;
     draft.active      = false;
     draft.format      = null;
     draft.currentGame = 1;
@@ -846,15 +860,62 @@ function currentDraftBans() {
 function unavailableChamps() {
     const set = new Set(draft.fearless);
     draft.slots.forEach(id => { if (id) set.add(id); });
+    if (draftStaged) set.add(draftStaged);
     return set;
 }
 
-// Select a champion for the current draft slot
-function draftSelectChamp(champId) {
+// Hover (transient mouse preview) — just updates the active slot ghost, no commit
+function draftHoverEnter(champId) {
+    if (draftStaged) return; // staged takes priority
+    if (draft.cursor >= 20) return;
+    if (unavailableChamps().has(champId)) return;
+    draftHoverPreview = champId;
+    renderDraftBoard();
+}
+function draftHoverLeave() {
+    if (draftStaged) return;
+    draftHoverPreview = null;
+    renderDraftBoard();
+}
+
+// Stage a champion (click) — sticky preview, greyed out in picker, Lock In to commit
+function draftStageChamp(champId) {
     if (draft.cursor >= 20) return;
     const unavail = unavailableChamps();
+    // Allow re-staging the same champ (toggle off)
+    if (draftStaged === champId) {
+        draftStaged = null;
+        draftHoverPreview = null;
+        document.getElementById('lockInBtn').disabled = true;
+        renderDraftPicker();
+        renderDraftBoard();
+        renderDraftPools();
+        renderDraftCompsRef();
+        return;
+    }
     if (unavail.has(champId)) return;
-    draft.slots[draft.cursor] = champId;
+    draftStaged = champId;
+    draftHoverPreview = null;
+    // Clear search
+    const s = document.getElementById('draftSearch');
+    if (s) s.value = '';
+    document.getElementById('lockInBtn').disabled = false;
+    renderDraftPicker();
+    renderDraftBoard();
+    renderDraftPools();
+    renderDraftCompsRef();
+}
+
+// Lock In — commit the staged champion to the current draft slot
+function draftLockIn() {
+    const id = draftStaged;
+    if (!id || draft.cursor >= 20) return;
+    if (unavailableChamps().has(id)) return; // shouldn't happen, safety check
+    // Remove staged from unavail set before committing
+    const wasStaged = draftStaged;
+    draftStaged = null;
+    draftHoverPreview = null;
+    draft.slots[draft.cursor] = wasStaged;
     draft.cursor++;
     scheduleSave();
     renderDraftTab();
@@ -863,6 +924,8 @@ function draftSelectChamp(champId) {
 // Undo last pick/ban
 function draftUndo() {
     if (draft.cursor === 0) return;
+    draftStaged = null;
+    draftHoverPreview = null;
     draft.cursor--;
     draft.slots[draft.cursor] = null;
     scheduleSave();
@@ -991,6 +1054,11 @@ function renderDraftBoard() {
             const c = getChamp(id);
             return `<div class="draft-ban-cell ${cls}">${c ? `<img src="${imgUrl(c)}" title="${c.name}">` : '×'}</div>`;
         }
+        const previewId = draftStaged || draftHoverPreview;
+        if (draft.cursor === slotIdx && previewId) {
+            const c = getChamp(previewId);
+            return `<div class="draft-ban-cell ${cls}" style="opacity:.45;border-style:dashed">${c ? `<img src="${imgUrl(c)}" title="${c.name}">` : '🚫'}</div>`;
+        }
         return `<div class="draft-ban-cell ${cls}">🚫</div>`;
     }
 
@@ -1003,6 +1071,15 @@ function renderDraftBoard() {
             return `<div class="draft-pick-cell ${cls} ${fearCls}">
                 ${c ? `<img src="${imgUrl(c)}" title="${c.name}">
                        <div class="pick-name">${c.name}</div>` : '<span>?</span>'}
+            </div>`;
+        }
+        // Show hover/staged preview in active slot
+        const previewId = draftStaged || draftHoverPreview;
+        if (draft.cursor === slotIdx && previewId) {
+            const c = getChamp(previewId);
+            return `<div class="draft-pick-cell ${cls} preview">
+                ${c ? `<img src="${imgUrl(c)}" title="${c.name}">
+                       <div class="pick-name">${c.name}</div>` : ''}
             </div>`;
         }
         return `<div class="draft-pick-cell ${cls}"><span class="pick-num">P${pickNum}</span></div>`;
@@ -1033,22 +1110,27 @@ function renderDraftBoard() {
 function renderDraftStatus() {
     const cursor = draft.cursor;
     const gameStartBtn = document.getElementById('gameStartBtn');
+    const lockInBtn    = document.getElementById('lockInBtn');
 
     if (cursor >= 20) {
         document.getElementById('draftTurnLabel').innerHTML =
             'Draft complete — ready to <span>start the game</span>';
         gameStartBtn.disabled = false;
+        lockInBtn.disabled    = true;
         return;
     }
 
     gameStartBtn.disabled = true;
-    const step  = DRAFT_SEQ[cursor];
+    lockInBtn.disabled    = !draftStaged;
+    const step       = DRAFT_SEQ[cursor];
     const isHomeBlue = draft.blueSide === 'home';
-    const team  = (step.t === 'blue') === isHomeBlue ? 'HOME' : 'AWAY';
-    const color = step.t === 'blue' ? '#4e9eff' : '#ff5555';
-    const action = step.a === 'ban' ? 'banning' : 'picking';
+    const team       = (step.t === 'blue') === isHomeBlue ? 'HOME' : 'AWAY';
+    const color      = step.t === 'blue' ? '#4e9eff' : '#ff5555';
+    const action     = step.a === 'ban' ? 'banning' : 'picking';
+    const stagedName = draftStaged ? (getChamp(draftStaged)?.name || '') : '';
     document.getElementById('draftTurnLabel').innerHTML =
         `<span style="color:${color};font-weight:700">${team}</span> is ${action}
+         ${stagedName ? `<span style="color:#c89b3c;margin-left:8px">— ${stagedName} staged</span>` : ''}
          <button class="draft-btn" style="margin-left:10px" onclick="draftUndo()">↩ Undo</button>`;
 }
 
@@ -1063,9 +1145,12 @@ function renderDraftPicker() {
 
     const done = draft.cursor >= 20;
     grid.innerHTML = list.map(c => {
-        const off = unavail.has(c.id) || done;
-        return `<div class="draft-roster-champ ${off ? 'unavailable' : ''}"
-                     onclick="${off ? '' : `draftSelectChamp('${c.id}')`}">
+        const off     = unavail.has(c.id) || done;
+        const staged  = !off && draftStaged === c.id;
+        return `<div class="draft-roster-champ ${off ? 'unavailable' : ''} ${staged ? 'staged' : ''}"
+                     onclick="${off ? '' : `draftStageChamp('${c.id}')`}"
+                     onmouseenter="${off ? '' : `draftHoverEnter('${c.id}')`}"
+                     onmouseleave="${off ? '' : `draftHoverLeave()`}">
             <img src="${imgUrl(c)}" alt="${c.name}" loading="lazy">
             <div class="tip">${c.name}</div>
         </div>`;
@@ -1097,8 +1182,12 @@ function renderDraftPools() {
                         if (!c) return '';
                         const isFearless = draft.fearless.includes(c.id);
                         const isDraftBan = currentDraftBans().includes(c.id);
-                        return `<div class="draft-pool-champ ${isFearless ? 'fearless-banned' : ''} ${isDraftBan ? 'draft-banned' : ''}"
-                                     data-tag="${item.tag||''}">
+                        const isUnavail  = unavailableChamps().has(c.id);
+                        const isAvail    = !isFearless && !isDraftBan && !isUnavail && draft.cursor < 20;
+                        const isStaged   = draftStaged === c.id;
+                        return `<div class="draft-pool-champ ${isFearless ? 'fearless-banned' : ''} ${isDraftBan ? 'draft-banned' : ''} ${isStaged ? 'staged-pool' : ''} ${isAvail ? 'available' : ''}"
+                                     data-tag="${item.tag||''}"
+                                     ${isAvail ? `onclick="draftStageChamp('${c.id}')" onmouseenter="draftHoverEnter('${c.id}')" onmouseleave="draftHoverLeave()"` : ''}>
                             <img src="${imgUrl(c)}" title="${c.name}">
                         </div>`;
                     }).join('')}
@@ -1124,11 +1213,14 @@ function renderDraftCompsRef() {
                             ${ids.length
                                 ? ids.map(cid => {
                                     const c = getChamp(cid);
-                                    return c ? `
-                                    <div class="comp-champ" data-tag="${getPoolTag(c.id)}"
-                                         title="${c.name}">
-                                        <img src="${imgUrl(c)}" alt="${c.name}">
-                                    </div>` : '';
+                                    if (!c) return '';
+                                    const isUnavail = unavailableChamps().has(c.id) || draft.cursor >= 20;
+                                    const isStaged  = draftStaged === c.id;
+                                    return `<div class="comp-champ ${isStaged ? 'staged-comp' : ''} ${!isUnavail ? 'draft-comp-champ-clickable' : ''}"
+                                                 data-tag="${getPoolTag(c.id)}" title="${c.name}"
+                                                 ${!isUnavail ? `onclick="draftStageChamp('${c.id}')" onmouseenter="draftHoverEnter('${c.id}')" onmouseleave="draftHoverLeave()"` : ''}>
+                                        <img src="${imgUrl(c)}" alt="${c.name}" ${isUnavail ? 'style="filter:grayscale(100%) brightness(.3);opacity:.4"' : ''}>
+                                    </div>`;
                                 }).join('')
                                 : '<span class="slot-placeholder">+</span>'}
                         </div>
@@ -1286,6 +1378,6 @@ function escHtml(s) {
 init();
 </script>
 
-<div style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#333;pointer-events:none;z-index:9999;letter-spacing:1px;">v3</div>
+<div style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#333;pointer-events:none;z-index:9999;letter-spacing:1px;">v4</div>
 </body>
 </html>
