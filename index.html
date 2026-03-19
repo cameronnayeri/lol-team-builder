@@ -630,7 +630,7 @@ const state = {
     version: null,
     champions: [],
     bans: [],
-    comps: [{ name: 'Comp 1', slots: [[], [], [], [], []] }],
+    comps: [{ name: 'Comp 1', slots: [[], [], [], [], [], []] }],
     members: [
         { name: 'PUSH',          role: 'top',     pool: [], emoji: '' },
         { name: 'GENISYS',       role: 'jungle',  pool: [], emoji: '' },
@@ -653,7 +653,7 @@ function applyRecord(data) {
         ...comp,
         slots: Array.isArray(comp.slots)
             ? comp.slots
-            : Array.from({ length: 5 }, (_, i) => comp.slots[i] || [])
+            : Array.from({ length: 6 }, (_, i) => comp.slots[i] || [])
     }));
     state.bans = data.bans || [];
 }
@@ -998,7 +998,7 @@ function clearBans() {
 
 // ─── Comp Management ─────────────────────────────────────────────────────────
 function addComp() {
-    state.comps.push({ name: `Comp ${state.comps.length + 1}`, slots: [[], [], [], [], []] });
+    state.comps.push({ name: `Comp ${state.comps.length + 1}`, slots: [[], [], [], [], [], []] });
     renderAllComps();
     scheduleSave();
 }
