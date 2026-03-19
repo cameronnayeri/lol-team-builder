@@ -764,7 +764,7 @@ function renderAllComps() {
                 ${ROLES.slice(0,5).map((role, ri) => {
                     const ids    = comp.slots[ri] || [];
                     const isCore = comp.core?.[ri] ?? false;
-                    return `<div class="role-col ${isCore ? 'core' : ''}">`
+                    return `<div class="role-col ${isCore ? 'core' : ''}">
                         <div class="role-label" title="Click to toggle core" onclick="toggleCoreRole(${ci},${ri})">${ROLE_ICONS[ri]} ${role}</div>
                         <div class="role-drop-zone ${ids.length ? 'has-champs' : ''}"
                              ondragover="onDragOver(event)" ondragleave="onDragLeave(event)"
