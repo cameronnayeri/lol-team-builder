@@ -628,7 +628,12 @@ let lastSavedJSON   = ''; // used to skip re-rendering our own writes
 // Apply incoming Firestore data into state
 function applyRecord(data) {
     if (data.members?.length) state.members = data.members;
-    if (data.comps?.length)   state.comps   = data.comps;
+    if (data.comps?.length)   state.comps   = data.comps.map(comp => ({
+        ...comp,
+        slots: Array.isArray(comp.slots)
+            ? comp.slots
+            : Array.from({ length: 5 }, (_, i) => comp.slots[i] || [])
+    }));
     state.bans = data.bans || [];
 }
 
@@ -676,7 +681,10 @@ async function saveToDB() {
         console.log('[Firebase] Attempting save...');
         const payload = {
             members: state.members.map(m => ({ ...m, pool: sortedPool(m.pool) })),
-            comps:   state.comps,
+            comps:   state.comps.map(comp => ({
+                ...comp,
+                slots: Object.fromEntries(comp.slots.map((slot, i) => [i, slot]))
+            })),
             bans:    state.bans,
         };
         lastSavedJSON = JSON.stringify(payload); // pre-mark so snapshot echo is ignored
