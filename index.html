@@ -121,6 +121,12 @@
         .comp-name-input:focus { border-bottom-color:#666; }
         .comp-del-btn { background:none; border:none; color:#444; font-size:16px; cursor:pointer; line-height:1; padding:0 2px; }
         .comp-del-btn:hover { color:#c0392b; }
+        .comp-drag-handle { cursor:grab; color:#2a2a2a; font-size:13px; padding:0 4px; user-select:none; flex-shrink:0; line-height:1; }
+        .comp-drag-handle:hover { color:#666; }
+        .comp-drag-handle:active { cursor:grabbing; }
+        .comp-block.comp-drag-over { border-color:#555; background:#1a1a1a; }
+        .comp-collapse-btn { background:none; border:none; color:#444; font-size:10px; cursor:pointer; padding:0 4px; line-height:1; flex-shrink:0; transition:color .1s; }
+        .comp-collapse-btn:hover { color:#aaa; }
         .comp-slots { display:grid; grid-template-columns:repeat(5,1fr); gap:3px; }
         .role-col { display:flex; flex-direction:column; align-items:center; gap:2px; }
         .role-label { font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:#555; }
@@ -498,8 +504,10 @@ let dragData        = null;
 let tagPickerTarget = null;
 let saveTimer       = null;
 let lastSavedJSON   = '';
-let draftStaged     = null; // champion staged for lock-in (click to set)
+let draftStaged       = null; // champion staged for lock-in (click to set)
 let draftHoverPreview = null; // transient mouse hover preview
+let compDragSrc       = null; // index of comp being reordered
+const collapsedComps  = new Set(); // indices of collapsed comp blocks
 
 // ─── Apply Firebase data ──────────────────────────────────────────────────────
 function applyRecord(data) {
@@ -728,16 +736,26 @@ function getPoolTag(champId) {
 
 function renderAllComps() {
     const container = document.getElementById('compsContainer');
-    container.innerHTML = state.comps.map((comp, ci) => `
-        <div class="comp-block">
+    container.innerHTML = state.comps.map((comp, ci) => {
+        const collapsed = collapsedComps.has(ci);
+        return `
+        <div class="comp-block" data-ci="${ci}"
+             ondragover="onCompBlockDragOver(event,${ci})"
+             ondragleave="onCompBlockDragLeave(event)"
+             ondrop="onCompBlockDrop(event,${ci})">
             <div class="comp-header">
+                <span class="comp-drag-handle" draggable="true"
+                      ondragstart="onCompDragStart(event,${ci})">⠿</span>
+                <button class="comp-collapse-btn" onclick="toggleComp(${ci})">
+                    ${collapsed ? '▶' : '▼'}
+                </button>
                 <input class="comp-name-input" type="text"
                        value="${escHtml(comp.name)}"
                        onchange="state.comps[${ci}].name = this.value">
                 ${state.comps.length > 1
                     ? `<button class="comp-del-btn" onclick="deleteComp(${ci})">×</button>` : ''}
             </div>
-            <div class="comp-slots">
+            ${collapsed ? '' : `<div class="comp-slots">
                 ${ROLES.slice(0,5).map((role, ri) => {
                     const ids = comp.slots[ri] || [];
                     return `<div class="role-col">
@@ -761,8 +779,9 @@ function renderAllComps() {
                         </div>
                     </div>`;
                 }).join('')}
-            </div>
-        </div>`).join('');
+            </div>`}
+        </div>`;
+    }).join('');
 }
 
 // ─── Render: Members ─────────────────────────────────────────────────────────
@@ -1305,8 +1324,9 @@ function onDragStart(e) {
     e.dataTransfer.effectAllowed = 'copy';
     e.dataTransfer.setData('text/plain', el.dataset.id);
 }
-function onDragOver(e)     { e.preventDefault(); e.dataTransfer.dropEffect='copy'; e.currentTarget.classList.add('drag-over'); }
+function onDragOver(e)     { if (!dragData) return; e.preventDefault(); e.dataTransfer.dropEffect='copy'; e.currentTarget.classList.add('drag-over'); }
 function onPoolBgDragOver(e, mi) {
+    if (!dragData) return;
     if (dragData?.source === 'pool' && dragData?.memberIdx === mi) return;
     e.preventDefault(); e.dataTransfer.dropEffect='copy'; e.currentTarget.classList.add('drag-over');
 }
@@ -1362,6 +1382,43 @@ function onDropComp(e, ci, ri) {
         renderAllComps(); scheduleSave();
     }
     dragData = null;
+}
+
+// ─── Comp Reorder Drag ───────────────────────────────────────────────────────
+function onCompDragStart(e, ci) {
+    compDragSrc = ci;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', `comp:${ci}`);
+    e.stopPropagation();
+}
+function onCompBlockDragOver(e, ci) {
+    if (compDragSrc === null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    e.currentTarget.classList.add('comp-drag-over');
+}
+function onCompBlockDragLeave(e) {
+    e.currentTarget.classList.remove('comp-drag-over');
+}
+function onCompBlockDrop(e, ci) {
+    e.currentTarget.classList.remove('comp-drag-over');
+    if (compDragSrc === null || compDragSrc === ci) { compDragSrc = null; return; }
+    e.preventDefault();
+    e.stopPropagation();
+    const [moved] = state.comps.splice(compDragSrc, 1);
+    state.comps.splice(ci, 0, moved);
+    collapsedComps.clear();
+    compDragSrc = null;
+    renderAllComps();
+    scheduleSave();
+}
+document.addEventListener('dragend', () => { compDragSrc = null; });
+
+function toggleComp(ci) {
+    if (collapsedComps.has(ci)) collapsedComps.delete(ci);
+    else collapsedComps.add(ci);
+    renderAllComps();
 }
 
 // ─── Remove ──────────────────────────────────────────────────────────────────
