@@ -3,583 +3,400 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LoL Team Builder v2</title>
-
-    <!-- Firebase SDK -->
+    <title>LoL Team Builder v3</title>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        body {
-            background: #111;
-            color: #e0e0e0;
-            font-family: 'Segoe UI', sans-serif;
-            height: 100vh;
-            overflow: hidden;
-            font-size: 14px;
-        }
+        body { background:#111; color:#e0e0e0; font-family:'Segoe UI',sans-serif; height:100vh; overflow:hidden; font-size:14px; }
 
         /* ── Header ── */
-        header {
-            background: #000;
-            border-bottom: 1px solid #2a2a2a;
-            padding: 9px 16px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-shrink: 0;
-        }
-        header h1 {
-            font-size: 14px;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            color: #fff;
-            font-weight: 600;
-        }
-        #saveStatus {
-            font-size: 11px;
-            color: #444;
-            transition: color 0.3s;
-        }
-        #saveStatus.saving { color: #888; }
-        #saveStatus.saved  { color: #2ecc71; }
-        #saveStatus.live   { color: #3498db; }
-        #saveStatus.error  { color: #e74c3c; }
+        header { background:#000; border-bottom:1px solid #2a2a2a; padding:0 16px; height:40px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+        header h1 { font-size:14px; letter-spacing:3px; text-transform:uppercase; color:#fff; font-weight:600; }
+        .tab-bar { display:flex; gap:2px; }
+        .tab-btn { background:none; border:none; color:#555; font-size:11px; letter-spacing:2px; text-transform:uppercase; font-weight:700; padding:6px 14px; cursor:pointer; border-bottom:2px solid transparent; transition:color .15s, border-color .15s; }
+        .tab-btn:hover { color:#aaa; }
+        .tab-btn.active { color:#fff; border-bottom-color:#fff; }
+        #saveStatus { font-size:11px; color:#444; transition:color .3s; }
+        #saveStatus.saving { color:#888; }
+        #saveStatus.saved  { color:#2ecc71; }
+        #saveStatus.live   { color:#3498db; }
+        #saveStatus.error  { color:#e74c3c; }
 
-        /* ── Bans bar ── */
-        .bans-bar {
-            background: #0a0a0a;
-            border-bottom: 1px solid #2a2a2a;
-            padding: 6px 12px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            height: 60px;
-            flex-shrink: 0;
-        }
-        .bans-label {
-            font-size: 10px;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            color: #555;
-            font-weight: 700;
-            flex-shrink: 0;
-        }
-        .bans-drop {
-            flex: 1;
-            display: flex;
-            flex-wrap: nowrap;
-            gap: 4px;
-            align-items: center;
-            min-height: 44px;
-            border: 1px dashed #2a2a2a;
-            border-radius: 2px;
-            padding: 4px 6px;
-            overflow-x: auto;
-            transition: border-color 0.1s, background 0.1s;
-        }
-        .bans-drop::-webkit-scrollbar { height: 3px; }
-        .bans-drop::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
-        .bans-drop.drag-over { border-color: #fff; background: #1a1a1a; }
-        .bans-empty {
-            color: #333;
-            font-size: 11px;
-            pointer-events: none;
-            user-select: none;
-            white-space: nowrap;
-        }
-        .ban-champ {
-            position: relative;
-            flex-shrink: 0;
-            width: 40px;
-        }
-        .ban-champ img {
-            width: 40px;
-            height: 40px;
-            object-fit: cover;
-            border-radius: 2px;
-            display: block;
-            filter: grayscale(100%);
-            opacity: 0.55;
-            border: 1px solid #333;
-        }
-        .ban-champ:hover .rm-btn { display: flex; }
-        .clear-bans-btn {
-            background: transparent;
-            border: 1px solid #2a2a2a;
-            color: #555;
-            font-size: 11px;
-            padding: 5px 12px;
-            border-radius: 2px;
-            cursor: pointer;
-            flex-shrink: 0;
-            transition: border-color 0.1s, color 0.1s;
-        }
-        .clear-bans-btn:hover { border-color: #888; color: #e0e0e0; }
+        /* ── Bans bar (builder only) ── */
+        .bans-bar { background:#0a0a0a; border-bottom:1px solid #2a2a2a; padding:6px 12px; display:flex; align-items:center; gap:10px; height:60px; flex-shrink:0; }
+        .bans-label { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:#555; font-weight:700; flex-shrink:0; }
+        .bans-drop { flex:1; display:flex; flex-wrap:nowrap; gap:4px; align-items:center; min-height:44px; border:1px dashed #2a2a2a; border-radius:2px; padding:4px 6px; overflow-x:auto; transition:border-color .1s,background .1s; }
+        .bans-drop::-webkit-scrollbar { height:3px; }
+        .bans-drop::-webkit-scrollbar-thumb { background:#2a2a2a; border-radius:2px; }
+        .bans-drop.drag-over { border-color:#fff; background:#1a1a1a; }
+        .bans-empty { color:#333; font-size:11px; pointer-events:none; user-select:none; white-space:nowrap; }
+        .ban-champ { position:relative; flex-shrink:0; width:40px; }
+        .ban-champ img { width:40px; height:40px; object-fit:cover; border-radius:2px; display:block; filter:grayscale(100%); opacity:.55; border:1px solid #333; }
+        .ban-champ:hover .rm-btn { display:flex; }
+        .clear-bans-btn { background:transparent; border:1px solid #2a2a2a; color:#555; font-size:11px; padding:5px 12px; border-radius:2px; cursor:pointer; flex-shrink:0; transition:border-color .1s,color .1s; }
+        .clear-bans-btn:hover { border-color:#888; color:#e0e0e0; }
+        .banned img { filter:grayscale(100%) brightness(.4) !important; opacity:.5 !important; }
 
-        /* ── Banned overlay (applied anywhere a champ is banned) ── */
-        .banned img {
-            filter: grayscale(100%) brightness(0.4) !important;
-            opacity: 0.5 !important;
-        }
+        /* ── Layout (shared) ── */
+        .layout { display:flex; overflow:hidden; }
+        .builder-layout { height:calc(100vh - 100px); }
+        .draft-layout { height:calc(100vh - 40px); }
+        .panel { display:flex; flex-direction:column; overflow:hidden; padding:10px; flex:1; min-width:160px; }
+        .resize-handle { width:5px; background:#1a1a1a; cursor:col-resize; flex-shrink:0; border-left:1px solid #222; border-right:1px solid #222; transition:background .1s; }
+        .resize-handle:hover, .resize-handle.active { background:#444; }
+        .panel-title { font-size:12px; text-transform:uppercase; letter-spacing:1.5px; color:#fff; font-weight:700; margin-bottom:8px; flex-shrink:0; }
+        .panel-hint { font-size:11px; color:#555; font-weight:400; letter-spacing:0; text-transform:none; margin-left:6px; }
 
-        /* ── Three-column layout ── */
-        .layout {
-            display: flex;
-            height: calc(100vh - 100px); /* 40px header + 60px bans */
-            overflow: hidden;
-        }
-
-        .panel {
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            padding: 10px;
-            flex: 1;
-            min-width: 160px;
-        }
-
-        /* ── Resize handle ── */
-        .resize-handle {
-            width: 5px;
-            background: #1a1a1a;
-            cursor: col-resize;
-            flex-shrink: 0;
-            border-left: 1px solid #222;
-            border-right: 1px solid #222;
-            transition: background 0.1s;
-        }
-        .resize-handle:hover,
-        .resize-handle.active { background: #444; }
-
-        .panel-title {
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            color: #fff;
-            font-weight: 700;
-            margin-bottom: 8px;
-            flex-shrink: 0;
-        }
-        .panel-hint {
-            font-size: 11px;
-            color: #555;
-            font-weight: 400;
-            letter-spacing: 0;
-            text-transform: none;
-            margin-left: 6px;
-        }
-
-        /* ── Shared inputs ── */
-        input[type=text], select {
-            background: #1a1a1a;
-            border: 1px solid #2a2a2a;
-            color: #e0e0e0;
-            font-size: 13px;
-            font-family: inherit;
-            outline: none;
-            border-radius: 2px;
-            padding: 4px 7px;
-        }
-        input[type=text]:focus, select:focus { border-color: #555; }
-        input[type=text]::placeholder { color: #444; }
+        /* ── Inputs ── */
+        input[type=text],select { background:#1a1a1a; border:1px solid #2a2a2a; color:#e0e0e0; font-size:13px; font-family:inherit; outline:none; border-radius:2px; padding:4px 7px; }
+        input[type=text]:focus,select:focus { border-color:#555; }
+        input[type=text]::placeholder { color:#444; }
 
         /* ── Roster panel ── */
-        .search-box { width: 100%; margin-bottom: 6px; flex-shrink: 0; }
-        .champ-count { font-size: 11px; color: #444; margin-bottom: 6px; flex-shrink: 0; }
-
-        .champion-grid {
-            display: grid;
-            grid-template-columns: repeat(8, 1fr);
-            gap: 2px;
-            overflow-y: auto;
-            flex: 1;
-        }
-        .champion-grid::-webkit-scrollbar { width: 4px; }
-        .champion-grid::-webkit-scrollbar-track { background: #111; }
-        .champion-grid::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
-
-        .roster-champ { position: relative; cursor: grab; }
-        .roster-champ:active { cursor: grabbing; }
-        .roster-champ img {
-            width: 100%;
-            aspect-ratio: 1;
-            object-fit: cover;
-            display: block;
-            border: 1px solid #222;
-            border-radius: 1px;
-            transition: border-color 0.1s, filter 0.1s;
-        }
-        .roster-champ:not(.banned):hover img { border-color: #888; filter: brightness(1.2); }
+        .search-box { width:100%; margin-bottom:6px; flex-shrink:0; }
+        .champ-count { font-size:11px; color:#444; margin-bottom:6px; flex-shrink:0; }
+        .champion-grid { display:grid; grid-template-columns:repeat(8,1fr); gap:2px; overflow-y:auto; flex:1; }
+        .champion-grid::-webkit-scrollbar { width:4px; }
+        .champion-grid::-webkit-scrollbar-thumb { background:#2a2a2a; border-radius:2px; }
+        .roster-champ { position:relative; cursor:grab; }
+        .roster-champ:active { cursor:grabbing; }
+        .roster-champ img { width:100%; aspect-ratio:1; object-fit:cover; display:block; border:1px solid #222; border-radius:1px; transition:border-color .1s,filter .1s; }
+        .roster-champ:not(.banned):hover img { border-color:#888; filter:brightness(1.2); }
 
         /* ── Pools panel ── */
-        .members-scroll {
-            overflow-y: auto;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        .members-scroll::-webkit-scrollbar { width: 4px; }
-        .members-scroll::-webkit-scrollbar-track { background: #111; }
-        .members-scroll::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+        .members-scroll { overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:6px; }
+        .members-scroll::-webkit-scrollbar { width:4px; }
+        .members-scroll::-webkit-scrollbar-thumb { background:#2a2a2a; border-radius:2px; }
+        .member-row { display:flex; align-items:flex-start; gap:8px; border:1px solid #222; border-radius:2px; padding:8px; flex-shrink:0; }
+        .member-meta { display:flex; flex-direction:column; gap:4px; width:110px; flex-shrink:0; }
+        .member-name-input { flex:1; min-width:0; font-weight:700; font-size:13px; border:none; border-bottom:1px solid #2a2a2a; background:transparent; border-radius:0; padding:2px 0; }
+        .member-name-input:focus { border-bottom-color:#666; }
+        .member-name-row { display:flex; align-items:center; gap:4px; width:100%; }
+        .role-label-static { font-size:12px; color:#555; padding:2px 0; }
+        .member-pool { flex:1; min-height:54px; border:1px dashed #2a2a2a; border-radius:2px; padding:5px; display:flex; flex-wrap:wrap; gap:4px; align-content:flex-start; transition:border-color .1s,background .1s; }
+        .member-pool.drag-over { border-color:#fff; background:#1a1a1a; }
+        .pool-empty { color:#333; font-size:12px; align-self:center; pointer-events:none; user-select:none; width:100%; text-align:center; }
 
-        .member-row {
-            display: flex;
-            align-items: flex-start;
-            gap: 8px;
-            border: 1px solid #222;
-            border-radius: 2px;
-            padding: 8px;
-            flex-shrink: 0;
-        }
-        .member-meta {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            width: 110px;
-            flex-shrink: 0;
-        }
-        .member-name-input {
-            flex: 1;
-            min-width: 0;
-            font-weight: 700;
-            font-size: 13px;
-            border: none;
-            border-bottom: 1px solid #2a2a2a;
-            background: transparent;
-            border-radius: 0;
-            padding: 2px 0;
-        }
-        .member-name-input:focus { border-bottom-color: #666; }
-        .member-name-row { display: flex; align-items: center; gap: 4px; width: 100%; }
-.role-label-static { font-size: 12px; color: #555; padding: 2px 0; }
-
-        .member-pool {
-            flex: 1;
-            min-height: 54px;
-            border: 1px dashed #2a2a2a;
-            border-radius: 2px;
-            padding: 5px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-            align-content: flex-start;
-            transition: border-color 0.1s, background 0.1s;
-        }
-        .member-pool.drag-over { border-color: #fff; background: #1a1a1a; }
-        .pool-empty {
-            color: #333;
-            font-size: 12px;
-            align-self: center;
-            pointer-events: none;
-            user-select: none;
-            width: 100%;
-            text-align: center;
-        }
-
-        /* ── Pool champion ── */
-        .pool-champ { position: relative; cursor: grab; width: 46px; }
-        .pool-champ:active { cursor: grabbing; }
-        .pool-champ img {
-            width: 46px;
-            height: 46px;
-            object-fit: cover;
-            border-radius: 2px;
-            border: 2px solid #2a2a2a;
-            display: block;
-            transition: filter 0.1s;
-        }
-        .pool-champ:not(.banned):hover img { filter: brightness(1.1); }
-
-        .pool-champ[data-tag="best"]         img { border-color: #e74c3c; }
-        .pool-champ[data-tag="great"]        img { border-color: #e67e22; }
-        .pool-champ[data-tag="decent"]       img { border-color: #d4ac0d; }
-        .pool-champ[data-tag="questionable"] img { border-color: #2ecc71; }
-        .pool-champ[data-tag="stretch"]      img { border-color: #3498db; }
-
-        .pool-champ.insert-before { box-shadow: -3px 0 0 #fff; }
-
-        .pool-tag-bar {
-            height: 3px;
-            border-radius: 0 0 2px 2px;
-            background: transparent;
-            margin-top: 1px;
-        }
-        .pool-champ[data-tag="best"]         .pool-tag-bar { background: #e74c3c; }
-        .pool-champ[data-tag="great"]        .pool-tag-bar { background: #e67e22; }
-        .pool-champ[data-tag="decent"]       .pool-tag-bar { background: #d4ac0d; }
-        .pool-champ[data-tag="questionable"] .pool-tag-bar { background: #2ecc71; }
-        .pool-champ[data-tag="stretch"]      .pool-tag-bar { background: #3498db; }
+        /* ── Pool champ ── */
+        .pool-champ { position:relative; cursor:grab; width:46px; }
+        .pool-champ:active { cursor:grabbing; }
+        .pool-champ img { width:46px; height:46px; object-fit:cover; border-radius:2px; border:2px solid #2a2a2a; display:block; transition:filter .1s; }
+        .pool-champ:not(.banned):hover img { filter:brightness(1.1); }
+        .pool-champ[data-tag="best"]         img { border-color:#e74c3c; }
+        .pool-champ[data-tag="great"]        img { border-color:#e67e22; }
+        .pool-champ[data-tag="decent"]       img { border-color:#d4ac0d; }
+        .pool-champ[data-tag="questionable"] img { border-color:#2ecc71; }
+        .pool-champ[data-tag="stretch"]      img { border-color:#3498db; }
+        .pool-champ.insert-before { box-shadow:-3px 0 0 #fff; }
+        .pool-tag-bar { height:3px; border-radius:0 0 2px 2px; background:transparent; margin-top:1px; }
+        .pool-champ[data-tag="best"]         .pool-tag-bar { background:#e74c3c; }
+        .pool-champ[data-tag="great"]        .pool-tag-bar { background:#e67e22; }
+        .pool-champ[data-tag="decent"]       .pool-tag-bar { background:#d4ac0d; }
+        .pool-champ[data-tag="questionable"] .pool-tag-bar { background:#2ecc71; }
+        .pool-champ[data-tag="stretch"]      .pool-tag-bar { background:#3498db; }
 
         /* ── Remove button ── */
-        .rm-btn {
-            position: absolute;
-            top: -4px;
-            right: -4px;
-            width: 14px;
-            height: 14px;
-            background: #1a1a1a;
-            border: 1px solid #555;
-            border-radius: 50%;
-            color: #ccc;
-            font-size: 9px;
-            line-height: 1;
-            cursor: pointer;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 30;
-            padding: 0;
-        }
-        .pool-champ:hover .rm-btn,
-        .comp-champ:hover .rm-btn { display: flex; }
-        .rm-btn:hover { background: #c0392b; border-color: #c0392b; color: #fff; }
+        .rm-btn { position:absolute; top:-4px; right:-4px; width:14px; height:14px; background:#1a1a1a; border:1px solid #555; border-radius:50%; color:#ccc; font-size:9px; line-height:1; cursor:pointer; display:none; align-items:center; justify-content:center; z-index:30; padding:0; }
+        .pool-champ:hover .rm-btn, .comp-champ:hover .rm-btn { display:flex; }
+        .rm-btn:hover { background:#c0392b; border-color:#c0392b; color:#fff; }
 
-        /* ── Tag picker popup ── */
-        #tagPicker {
-            position: fixed;
-            z-index: 1000;
-            background: #1a1a1a;
-            border: 1px solid #333;
-            border-radius: 3px;
-            padding: 6px;
-            display: none;
-            gap: 5px;
-            align-items: center;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.7);
-        }
-        #tagPicker.open { display: flex; }
-        .tag-opt {
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            border: 1px solid #444;
-            cursor: pointer;
-            flex-shrink: 0;
-            transition: transform 0.1s;
-        }
-        .tag-opt:hover { transform: scale(1.3); border-color: #aaa; }
-        .tag-opt-clear { background: #2a2a2a; color: #888; font-size: 11px; line-height: 1; }
-
-        .tag-legend-row {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            font-size: 11px;
-            color: #444;
-            margin-bottom: 7px;
-            flex-wrap: wrap;
-            flex-shrink: 0;
-        }
-        .tag-legend-item { display: flex; align-items: center; gap: 4px; }
-        .tag-dot { width: 8px; height: 8px; border-radius: 50%; }
+        /* ── Tag picker ── */
+        #tagPicker { position:fixed; z-index:1000; background:#1a1a1a; border:1px solid #333; border-radius:3px; padding:6px; display:none; gap:5px; align-items:center; box-shadow:0 4px 14px rgba(0,0,0,.7); }
+        #tagPicker.open { display:flex; }
+        .tag-opt { width:18px; height:18px; border-radius:50%; border:1px solid #444; cursor:pointer; flex-shrink:0; transition:transform .1s; }
+        .tag-opt:hover { transform:scale(1.3); border-color:#aaa; }
+        .tag-opt-clear { background:#2a2a2a; color:#888; font-size:11px; line-height:1; }
+        .tag-legend-row { display:flex; gap:10px; align-items:center; font-size:11px; color:#444; margin-bottom:7px; flex-wrap:wrap; flex-shrink:0; }
+        .tag-legend-item { display:flex; align-items:center; gap:4px; }
+        .tag-dot { width:8px; height:8px; border-radius:50%; }
 
         /* ── Comps panel ── */
-        .comps-scroll {
-            overflow-y: auto;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .comps-scroll::-webkit-scrollbar { width: 4px; }
-        .comps-scroll::-webkit-scrollbar-track { background: #111; }
-        .comps-scroll::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
-
-        .comp-block { border: 1px solid #222; border-radius: 2px; padding: 8px; flex-shrink: 0; }
-        .comp-header { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-        .comp-name-input {
-            flex: 1;
-            font-weight: 700;
-            font-size: 13px;
-            border: none;
-            border-bottom: 1px solid #2a2a2a;
-            background: transparent;
-            border-radius: 0;
-            padding: 2px 0;
-        }
-        .comp-name-input:focus { border-bottom-color: #666; }
-        .comp-del-btn {
-            background: none;
-            border: none;
-            color: #444;
-            font-size: 16px;
-            cursor: pointer;
-            line-height: 1;
-            padding: 0 2px;
-        }
-        .comp-del-btn:hover { color: #c0392b; }
-
-        .comp-slots { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; }
-        .role-col { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-        .role-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #555; }
-
-        .role-drop-zone {
-            width: 100%;
-            min-height: 48px;
-            border: 1px dashed #2a2a2a;
-            border-radius: 2px;
-            padding: 3px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 2px;
-            justify-content: center;
-            align-content: flex-start;
-            background: #0d0d0d;
-            transition: border-color 0.1s, background 0.1s;
-        }
-        .role-drop-zone.drag-over { border-color: #fff; background: #1a1a1a; }
-        .role-drop-zone.has-champs { border-style: solid; border-color: #222; }
-        .slot-placeholder { font-size: 14px; color: #2a2a2a; pointer-events: none; user-select: none; align-self: center; }
-
-        .comp-champ { position: relative; width: 40px; }
-        .comp-champ img {
-            width: 40px;
-            height: 40px;
-            object-fit: cover;
-            border-radius: 2px;
-            border: 1px solid #2a2a2a;
-            display: block;
-        }
-        .comp-champ[data-tag="best"]         img { border-color: #e74c3c; }
-        .comp-champ[data-tag="great"]        img { border-color: #e67e22; }
-        .comp-champ[data-tag="decent"]       img { border-color: #d4ac0d; }
-        .comp-champ[data-tag="questionable"] img { border-color: #2ecc71; }
-        .comp-champ[data-tag="stretch"]      img { border-color: #3498db; }
-        .comp-champ .champ-lbl {
-            font-size: 9px;
-            color: #555;
-            text-align: center;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            max-width: 40px;
-        }
-
-        .add-comp-btn {
-            margin-top: 6px;
-            padding: 7px 0;
-            background: transparent;
-            border: 1px dashed #2a2a2a;
-            border-radius: 2px;
-            color: #444;
-            font-size: 12px;
-            cursor: pointer;
-            width: 100%;
-            transition: border-color 0.1s, color 0.1s;
-            flex-shrink: 0;
-        }
-        .add-comp-btn:hover { border-color: #888; color: #e0e0e0; }
+        .comps-scroll { overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:10px; }
+        .comps-scroll::-webkit-scrollbar { width:4px; }
+        .comps-scroll::-webkit-scrollbar-thumb { background:#2a2a2a; border-radius:2px; }
+        .comp-block { border:1px solid #222; border-radius:2px; padding:8px; flex-shrink:0; }
+        .comp-header { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+        .comp-name-input { flex:1; font-weight:700; font-size:13px; border:none; border-bottom:1px solid #2a2a2a; background:transparent; border-radius:0; padding:2px 0; }
+        .comp-name-input:focus { border-bottom-color:#666; }
+        .comp-del-btn { background:none; border:none; color:#444; font-size:16px; cursor:pointer; line-height:1; padding:0 2px; }
+        .comp-del-btn:hover { color:#c0392b; }
+        .comp-slots { display:grid; grid-template-columns:repeat(5,1fr); gap:3px; }
+        .role-col { display:flex; flex-direction:column; align-items:center; gap:2px; }
+        .role-label { font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:#555; }
+        .role-drop-zone { width:100%; min-height:48px; border:1px dashed #2a2a2a; border-radius:2px; padding:3px; display:flex; flex-wrap:wrap; gap:2px; justify-content:center; align-content:flex-start; background:#0d0d0d; transition:border-color .1s,background .1s; }
+        .role-drop-zone.drag-over { border-color:#fff; background:#1a1a1a; }
+        .role-drop-zone.has-champs { border-style:solid; border-color:#222; }
+        .slot-placeholder { font-size:14px; color:#2a2a2a; pointer-events:none; user-select:none; align-self:center; }
+        .comp-champ { position:relative; width:40px; }
+        .comp-champ img { width:40px; height:40px; object-fit:cover; border-radius:2px; border:1px solid #2a2a2a; display:block; }
+        .comp-champ[data-tag="best"]         img { border-color:#e74c3c; }
+        .comp-champ[data-tag="great"]        img { border-color:#e67e22; }
+        .comp-champ[data-tag="decent"]       img { border-color:#d4ac0d; }
+        .comp-champ[data-tag="questionable"] img { border-color:#2ecc71; }
+        .comp-champ[data-tag="stretch"]      img { border-color:#3498db; }
+        .comp-champ .champ-lbl { font-size:9px; color:#555; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:40px; }
+        .add-comp-btn { margin-top:6px; padding:7px 0; background:transparent; border:1px dashed #2a2a2a; border-radius:2px; color:#444; font-size:12px; cursor:pointer; width:100%; transition:border-color .1s,color .1s; flex-shrink:0; }
+        .add-comp-btn:hover { border-color:#888; color:#e0e0e0; }
 
         /* ── Tooltip ── */
-        .tip {
-            position: absolute;
-            bottom: calc(100% + 3px);
-            left: 50%;
-            transform: translateX(-50%);
-            background: #000;
-            border: 1px solid #333;
-            color: #e0e0e0;
-            font-size: 11px;
-            padding: 2px 7px;
-            border-radius: 2px;
-            white-space: nowrap;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.1s;
-            z-index: 999;
-        }
-        .roster-champ:hover .tip { opacity: 1; }
+        .tip { position:absolute; bottom:calc(100% + 3px); left:50%; transform:translateX(-50%); background:#000; border:1px solid #333; color:#e0e0e0; font-size:11px; padding:2px 7px; border-radius:2px; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .1s; z-index:999; }
+        .roster-champ:hover .tip { opacity:1; }
 
         /* ── Loading ── */
-        .loading-msg {
-            grid-column: 1 / -1;
-            text-align: center;
-            color: #333;
-            font-size: 12px;
-            padding: 20px 0;
-        }
-        .spinner {
-            display: inline-block;
-            width: 11px; height: 11px;
-            border: 2px solid #222;
-            border-top-color: #888;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-right: 5px;
-            vertical-align: middle;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-msg { grid-column:1/-1; text-align:center; color:#333; font-size:12px; padding:20px 0; }
+        .spinner { display:inline-block; width:11px; height:11px; border:2px solid #222; border-top-color:#888; border-radius:50%; animation:spin .8s linear infinite; margin-right:5px; vertical-align:middle; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+
+        /* ══════════════════════════════════════════
+           DRAFT TAB
+        ══════════════════════════════════════════ */
+
+        /* Draft left: pools (read-only reference) */
+        .draft-pools-panel { display:flex; flex-direction:column; overflow:hidden; padding:10px; width:260px; min-width:180px; flex-shrink:0; border-right:1px solid #1e1e1e; }
+        .draft-member-row { display:flex; align-items:flex-start; gap:6px; border:1px solid #1e1e1e; border-radius:2px; padding:6px; flex-shrink:0; margin-bottom:5px; }
+        .draft-member-name { font-size:11px; font-weight:700; color:#aaa; width:80px; flex-shrink:0; padding-top:2px; }
+        .draft-member-pool { display:flex; flex-wrap:wrap; gap:3px; }
+        .draft-pool-champ { position:relative; width:36px; }
+        .draft-pool-champ img { width:36px; height:36px; object-fit:cover; border-radius:2px; border:2px solid #2a2a2a; display:block; }
+        .draft-pool-champ[data-tag="best"]         img { border-color:#e74c3c; }
+        .draft-pool-champ[data-tag="great"]        img { border-color:#e67e22; }
+        .draft-pool-champ[data-tag="decent"]       img { border-color:#d4ac0d; }
+        .draft-pool-champ[data-tag="questionable"] img { border-color:#2ecc71; }
+        .draft-pool-champ[data-tag="stretch"]      img { border-color:#3498db; }
+        .draft-pool-champ.fearless-banned img { filter:grayscale(100%) brightness(.3); opacity:.4; }
+        .draft-pool-champ.draft-banned img   { filter:grayscale(100%) brightness(.3); opacity:.4; }
+
+        /* Draft right: comps (read-only reference) */
+        .draft-comps-panel { display:flex; flex-direction:column; overflow:hidden; padding:10px; width:280px; min-width:180px; flex-shrink:0; border-left:1px solid #1e1e1e; }
+
+        /* Draft center */
+        .draft-center { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:420px; }
+
+        /* Setup screen */
+        .draft-setup { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; }
+        .draft-setup h2 { font-size:16px; letter-spacing:3px; text-transform:uppercase; color:#888; font-weight:600; }
+        .format-btns { display:flex; gap:12px; }
+        .format-btn { background:#1a1a1a; border:1px solid #333; color:#aaa; font-size:13px; font-weight:700; padding:14px 28px; border-radius:3px; cursor:pointer; letter-spacing:1px; transition:border-color .15s,color .15s,background .15s; }
+        .format-btn:hover { border-color:#888; color:#fff; background:#222; }
+
+        /* Draft board header */
+        .draft-board-header { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border-bottom:1px solid #1e1e1e; flex-shrink:0; background:#0a0a0a; }
+        .draft-series-label { font-size:12px; letter-spacing:1.5px; text-transform:uppercase; color:#aaa; font-weight:700; }
+        .draft-score { font-size:13px; font-weight:700; color:#fff; }
+        .draft-header-btns { display:flex; gap:6px; }
+        .draft-btn { background:#1a1a1a; border:1px solid #333; color:#888; font-size:10px; letter-spacing:1px; text-transform:uppercase; padding:5px 10px; border-radius:2px; cursor:pointer; transition:border-color .1s,color .1s; }
+        .draft-btn:hover { border-color:#888; color:#fff; }
+        .draft-btn.danger:hover { border-color:#c0392b; color:#c0392b; }
+        .draft-btn.primary { border-color:#c89b3c; color:#c89b3c; }
+        .draft-btn.primary:hover { background:#c89b3c22; color:#f0c060; border-color:#f0c060; }
+        .draft-btn:disabled { opacity:.3; cursor:default; pointer-events:none; }
+
+        /* Fearless banner */
+        .fearless-row { padding:6px 12px; border-bottom:1px solid #1e1e1e; background:#0d0d0d; display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap; min-height:36px; }
+        .fearless-label { font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:#555; font-weight:700; flex-shrink:0; }
+        .fearless-champ { width:26px; height:26px; border-radius:2px; object-fit:cover; filter:grayscale(100%) brightness(.4); opacity:.6; border:1px solid #333; }
+
+        /* Draft board */
+        .draft-board { display:flex; gap:0; padding:10px 12px; flex-shrink:0; background:#0d0d0d; border-bottom:1px solid #1e1e1e; }
+        .draft-team-col { flex:1; display:flex; flex-direction:column; gap:4px; }
+        .draft-team-col.red-col { align-items:flex-end; }
+        .draft-vs { width:50px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+        .draft-vs-label { font-size:11px; color:#333; letter-spacing:2px; }
+
+        .draft-team-label { font-size:10px; letter-spacing:2px; text-transform:uppercase; font-weight:700; padding:3px 0 6px; }
+        .draft-team-label.blue { color:#4e9eff; }
+        .draft-team-label.red  { color:#ff5555; }
+
+        /* Ban cells */
+        .draft-bans-row { display:flex; gap:3px; }
+        .draft-ban-cell { width:36px; height:36px; border-radius:2px; border:1px solid #2a2a2a; background:#111; display:flex; align-items:center; justify-content:center; font-size:16px; color:#2a2a2a; overflow:hidden; position:relative; flex-shrink:0; transition:border-color .15s; }
+        .draft-ban-cell img { width:36px; height:36px; object-fit:cover; display:block; filter:grayscale(70%) brightness(.6); }
+        .draft-ban-cell.active { border-color:#fff; box-shadow:0 0 8px #fff4; animation:pulse .8s ease-in-out infinite alternate; }
+        .draft-ban-cell.blue-active { border-color:#4e9eff; box-shadow:0 0 8px #4e9eff66; animation:pulse-blue .8s ease-in-out infinite alternate; }
+        .draft-ban-cell.red-active  { border-color:#ff5555; box-shadow:0 0 8px #ff555566; animation:pulse-red  .8s ease-in-out infinite alternate; }
+
+        /* Pick cells */
+        .draft-picks-col { display:flex; flex-direction:column; gap:3px; margin-top:6px; }
+        .draft-pick-cell { width:56px; height:56px; border-radius:2px; border:1px solid #2a2a2a; background:#111; display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; flex-shrink:0; transition:border-color .15s; }
+        .draft-pick-cell img { width:56px; height:56px; object-fit:cover; display:block; }
+        .draft-pick-cell.active { border-color:#fff; animation:pulse .8s ease-in-out infinite alternate; }
+        .draft-pick-cell.blue-active { border-color:#4e9eff; box-shadow:0 0 10px #4e9eff55; animation:pulse-blue .8s ease-in-out infinite alternate; }
+        .draft-pick-cell.red-active  { border-color:#ff5555; box-shadow:0 0 10px #ff555555; animation:pulse-red  .8s ease-in-out infinite alternate; }
+        .draft-pick-cell .pick-num { font-size:9px; color:#333; letter-spacing:.5px; }
+        .draft-pick-cell .pick-name { position:absolute; bottom:1px; left:0; right:0; font-size:8px; color:#ccc; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 2px; background:linear-gradient(transparent,#000a); }
+        .draft-pick-cell.fearless img { filter:grayscale(100%) brightness(.4); }
+
+        @keyframes pulse      { from { opacity:.7; } to { opacity:1; } }
+        @keyframes pulse-blue { from { box-shadow:0 0 4px #4e9eff44; } to { box-shadow:0 0 14px #4e9effaa; } }
+        @keyframes pulse-red  { from { box-shadow:0 0 4px #ff555544; } to { box-shadow:0 0 14px #ff5555aa; } }
+
+        /* Draft status bar */
+        .draft-status-bar { padding:7px 12px; border-bottom:1px solid #1e1e1e; background:#090909; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+        .draft-turn-label { font-size:11px; letter-spacing:1px; color:#888; }
+        .draft-turn-label span { font-weight:700; color:#fff; }
+        .draft-action-btns { display:flex; gap:8px; }
+
+        /* Draft champion picker */
+        .draft-picker { flex:1; display:flex; flex-direction:column; overflow:hidden; padding:8px 12px; }
+        .draft-pick-search { width:100%; margin-bottom:6px; flex-shrink:0; }
+        .draft-champ-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(42px,1fr)); gap:2px; overflow-y:auto; flex:1; }
+        .draft-champ-grid::-webkit-scrollbar { width:4px; }
+        .draft-champ-grid::-webkit-scrollbar-thumb { background:#2a2a2a; border-radius:2px; }
+        .draft-roster-champ { position:relative; cursor:pointer; border-radius:1px; }
+        .draft-roster-champ img { width:100%; aspect-ratio:1; object-fit:cover; display:block; border:1px solid #222; border-radius:1px; transition:border-color .1s,filter .1s; }
+        .draft-roster-champ:hover:not(.unavailable) img { border-color:#aaa; filter:brightness(1.2); }
+        .draft-roster-champ.unavailable { pointer-events:none; }
+        .draft-roster-champ.unavailable img { filter:grayscale(100%) brightness(.25); opacity:.5; }
+        .draft-roster-champ .tip { bottom:calc(100% + 2px); }
+        .draft-roster-champ:hover .tip { opacity:1; }
+
+        /* Winner modal */
+        .winner-overlay { position:fixed; inset:0; background:#000a; display:flex; align-items:center; justify-content:center; z-index:500; }
+        .winner-modal { background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:28px 36px; display:flex; flex-direction:column; align-items:center; gap:16px; }
+        .winner-modal h3 { font-size:14px; letter-spacing:2px; text-transform:uppercase; color:#aaa; }
+        .winner-btns { display:flex; gap:12px; }
+        .winner-btn { background:#111; border:1px solid #444; color:#ccc; font-size:13px; font-weight:700; padding:10px 24px; border-radius:3px; cursor:pointer; transition:border-color .15s,color .15s; }
+        .winner-btn:hover { border-color:#fff; color:#fff; }
+        .winner-btn.home-btn:hover { border-color:#4e9eff; color:#4e9eff; }
+        .winner-btn.away-btn:hover { border-color:#ff5555; color:#ff5555; }
     </style>
 </head>
 <body>
 
 <header>
-    <h1>LoL Team Builder <span style="color:#444;font-weight:400">v2</span></h1>
+    <h1>LoL Team Builder <span style="color:#444;font-weight:400">v3</span></h1>
+    <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('builder')">Builder</button>
+        <button class="tab-btn" onclick="switchTab('draft')">Draft</button>
+    </div>
     <span id="saveStatus">—</span>
 </header>
 
-<!-- Bans bar -->
-<div class="bans-bar">
-    <span class="bans-label">Bans</span>
-    <div class="bans-drop" id="bansZone"
-         ondragover="onDragOver(event)"
-         ondragleave="onDragLeave(event)"
-         ondrop="onDropBan(event)">
-        <span class="bans-empty" id="bansEmpty">Drag champions here to ban</span>
+<!-- ══ BUILDER TAB ══════════════════════════════════════════════════════════ -->
+<div id="tabBuilder">
+    <div class="bans-bar">
+        <span class="bans-label">Bans</span>
+        <div class="bans-drop" id="bansZone" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDropBan(event)">
+            <span class="bans-empty" id="bansEmpty">Drag champions here to ban</span>
+        </div>
+        <button class="clear-bans-btn" onclick="clearBans()">Clear Bans</button>
     </div>
-    <button class="clear-bans-btn" onclick="clearBans()">Clear Bans</button>
+
+    <div class="layout builder-layout" id="builderLayout">
+        <div class="panel" id="panelRoster">
+            <div class="panel-title">Champions</div>
+            <input type="text" class="search-box" id="searchBox" placeholder="Search…">
+            <div class="champ-count" id="champCount"></div>
+            <div class="champion-grid" id="championGrid">
+                <div class="loading-msg"><span class="spinner"></span>Loading…</div>
+            </div>
+        </div>
+        <div class="resize-handle" id="handle1"></div>
+        <div class="panel" id="panelPools">
+            <div class="panel-title">Champion Pools <span class="panel-hint">click icon to tag · drag to comp</span></div>
+            <div class="tag-legend-row">
+                <span style="color:#555">Tag:</span>
+                <span class="tag-legend-item"><span class="tag-dot" style="background:#e74c3c"></span>Best</span>
+                <span class="tag-legend-item"><span class="tag-dot" style="background:#e67e22"></span>Great</span>
+                <span class="tag-legend-item"><span class="tag-dot" style="background:#d4ac0d"></span>Decent</span>
+                <span class="tag-legend-item"><span class="tag-dot" style="background:#2ecc71"></span>Questionable</span>
+                <span class="tag-legend-item"><span class="tag-dot" style="background:#3498db"></span>Stretch</span>
+            </div>
+            <div class="members-scroll" id="membersContainer"></div>
+        </div>
+        <div class="resize-handle" id="handle2"></div>
+        <div class="panel" id="panelComps">
+            <div class="panel-title">Team Comps</div>
+            <div class="comps-scroll" id="compsContainer"></div>
+            <button class="add-comp-btn" onclick="addComp()">+ Add Comp</button>
+        </div>
+    </div>
 </div>
 
-<div class="layout" id="layout">
+<!-- ══ DRAFT TAB ══════════════════════════════════════════════════════════ -->
+<div id="tabDraft" style="display:none">
+    <div class="layout draft-layout" id="draftLayout">
+        <!-- Left: Pools reference -->
+        <div class="draft-pools-panel" id="draftPoolsPanel">
+            <div class="panel-title">Champion Pools</div>
+            <div class="members-scroll" id="draftMembersContainer"></div>
+        </div>
 
-    <!-- LEFT: Champion Roster -->
-    <div class="panel" id="panelRoster">
-        <div class="panel-title">Champions</div>
-        <input type="text" class="search-box" id="searchBox" placeholder="Search…">
-        <div class="champ-count" id="champCount"></div>
-        <div class="champion-grid" id="championGrid">
-            <div class="loading-msg"><span class="spinner"></span>Loading…</div>
+        <div class="resize-handle" id="draftHandle1"></div>
+
+        <!-- Center: Draft board -->
+        <div class="draft-center" id="draftCenter">
+            <!-- Setup screen (shown when no active series) -->
+            <div class="draft-setup" id="draftSetup">
+                <h2>Start a Series</h2>
+                <div class="format-btns">
+                    <button class="format-btn" onclick="startSeries(1)">BO1</button>
+                    <button class="format-btn" onclick="startSeries(3)">BO3</button>
+                    <button class="format-btn" onclick="startSeries(5)">BO5</button>
+                    <button class="format-btn" onclick="startSeries(7)">BO7</button>
+                </div>
+            </div>
+
+            <!-- Active draft (hidden until series started) -->
+            <div id="draftActive" style="display:none; height:100%; display:none; flex-direction:column;">
+                <div class="draft-board-header">
+                    <span class="draft-series-label" id="draftSeriesLabel">Game 1 · BO3</span>
+                    <span class="draft-score" id="draftScore">HOME 0 — 0 AWAY</span>
+                    <div class="draft-header-btns">
+                        <button class="draft-btn" onclick="flipSides()" id="flipBtn">⇄ Flip Sides</button>
+                        <button class="draft-btn danger" onclick="endSeries()">End Series</button>
+                    </div>
+                </div>
+
+                <div class="fearless-row" id="fearlessRow">
+                    <span class="fearless-label">Fearless</span>
+                    <span id="fearlessChamps"></span>
+                </div>
+
+                <div class="draft-board" id="draftBoard">
+                    <!-- rendered by renderDraftBoard() -->
+                </div>
+
+                <div class="draft-status-bar">
+                    <span class="draft-turn-label" id="draftTurnLabel">Waiting…</span>
+                    <div class="draft-action-btns">
+                        <button class="draft-btn primary" id="gameStartBtn" onclick="commitGame()" disabled>Game Start</button>
+                    </div>
+                </div>
+
+                <div class="draft-picker">
+                    <input type="text" class="draft-pick-search" id="draftSearch" placeholder="Search champion…" oninput="renderDraftPicker()">
+                    <div class="draft-champ-grid" id="draftChampGrid"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="resize-handle" id="draftHandle2"></div>
+
+        <!-- Right: Comps reference -->
+        <div class="draft-comps-panel" id="draftCompsPanel">
+            <div class="panel-title">Team Comps</div>
+            <div class="comps-scroll" id="draftCompsContainer"></div>
         </div>
     </div>
+</div>
 
-    <div class="resize-handle" id="handle1"></div>
-
-    <!-- MIDDLE: Champion Pools -->
-    <div class="panel" id="panelPools">
-        <div class="panel-title">
-            Champion Pools
-            <span class="panel-hint">click icon to tag · drag to comp</span>
+<!-- Winner modal (hidden) -->
+<div class="winner-overlay" id="winnerOverlay" style="display:none">
+    <div class="winner-modal">
+        <h3 id="winnerGameLabel">Game 1 — Who Won?</h3>
+        <div class="winner-btns">
+            <button class="winner-btn home-btn" onclick="recordWinner('home')">HOME</button>
+            <button class="winner-btn away-btn" onclick="recordWinner('away')">AWAY</button>
+            <button class="winner-btn" onclick="recordWinner(null)">Skip</button>
         </div>
-        <div class="tag-legend-row">
-            <span style="color:#555">Tag:</span>
-            <span class="tag-legend-item"><span class="tag-dot" style="background:#e74c3c"></span>Best</span>
-            <span class="tag-legend-item"><span class="tag-dot" style="background:#e67e22"></span>Great</span>
-            <span class="tag-legend-item"><span class="tag-dot" style="background:#d4ac0d"></span>Decent</span>
-            <span class="tag-legend-item"><span class="tag-dot" style="background:#2ecc71"></span>Questionable</span>
-            <span class="tag-legend-item"><span class="tag-dot" style="background:#3498db"></span>Stretch</span>
-        </div>
-        <div class="members-scroll" id="membersContainer"></div>
     </div>
-
-    <div class="resize-handle" id="handle2"></div>
-
-    <!-- RIGHT: Team Comps -->
-    <div class="panel" id="panelComps">
-        <div class="panel-title">Team Comps</div>
-        <div class="comps-scroll" id="compsContainer"></div>
-        <button class="add-comp-btn" onclick="addComp()">+ Add Comp</button>
-    </div>
-
 </div>
 
 <!-- Floating tag picker -->
 <div id="tagPicker">
-    <button class="tag-opt tag-opt-clear" onclick="setTag('')"             title="Clear">✕</button>
+    <button class="tag-opt tag-opt-clear" onclick="setTag('')" title="Clear">✕</button>
     <button class="tag-opt" style="background:#e74c3c" onclick="setTag('best')"         title="Best"></button>
     <button class="tag-opt" style="background:#e67e22" onclick="setTag('great')"        title="Great"></button>
     <button class="tag-opt" style="background:#d4ac0d" onclick="setTag('decent')"       title="Decent"></button>
@@ -588,7 +405,7 @@
 </div>
 
 <script>
-// ─── Firebase Config ──────────────────────────────────────────────────────────
+// ─── Firebase ────────────────────────────────────────────────────────────────
 const firebaseConfig = {
     apiKey:            "AIzaSyDeZ0kU9w_C4b1a0j1kkXN8NRSrNkON17U",
     authDomain:        "league-team-22547.firebaseapp.com",
@@ -601,66 +418,103 @@ firebase.initializeApp(firebaseConfig);
 const db  = firebase.firestore();
 const DOC = db.collection('teambuilder').doc('data');
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
 const ROLES      = ['Top', 'Jungle', 'Mid', 'Bot', 'Support', 'Sub'];
 const ROLE_ICONS = ['⚔', '🌿', '✨', '💰', '🛡', '⭐'];
 const ROLE_VALS  = ['top', 'jungle', 'mid', 'bot', 'support', 'sub'];
+const TAG_ORDER  = { 'best':0, 'great':1, 'decent':2, 'questionable':3, 'stretch':4, '':5 };
+
+// Draft sequence: 20 slots — [team, action]
+// blue bans: 0,2,4,13,15  blue picks: 6,9,10,17,18
+// red  bans: 1,3,5,12,14  red  picks: 7,8,11,16,19
+const DRAFT_SEQ = [
+    {t:'blue',a:'ban'}, {t:'red',a:'ban'}, {t:'blue',a:'ban'}, {t:'red',a:'ban'},
+    {t:'blue',a:'ban'}, {t:'red',a:'ban'},
+    {t:'blue',a:'pick'},{t:'red',a:'pick'},{t:'red',a:'pick'}, {t:'blue',a:'pick'},
+    {t:'blue',a:'pick'},{t:'red',a:'pick'},
+    {t:'red',a:'ban'},  {t:'blue',a:'ban'},{t:'red',a:'ban'},  {t:'blue',a:'ban'},
+    {t:'red',a:'pick'}, {t:'blue',a:'pick'},{t:'blue',a:'pick'},{t:'red',a:'pick'},
+];
+const BLUE_BAN_SLOTS  = [0,2,4,13,15];
+const BLUE_PICK_SLOTS = [6,9,10,17,18];
+const RED_BAN_SLOTS   = [1,3,5,12,14];
+const RED_PICK_SLOTS  = [7,8,11,16,19];
 
 function getRoleDisplay(role) {
     const idx = ROLE_VALS.indexOf(role);
     return idx === -1 ? role : `${ROLE_ICONS[idx]} ${ROLES[idx]}`;
 }
-const TAG_ORDER  = { 'best': 0, 'great': 1, 'decent': 2, 'questionable': 3, 'stretch': 4, '': 5 };
-
 function sortedPool(pool) {
-    return [...pool].sort((a, b) => (TAG_ORDER[a.tag||''] ?? 5) - (TAG_ORDER[b.tag||''] ?? 5));
+    return [...pool].sort((a,b) => (TAG_ORDER[a.tag||'']??5)-(TAG_ORDER[b.tag||'']??5));
 }
 
-// ─── State ────────────────────────────────────────────────────────────────────
+// ─── Builder State ───────────────────────────────────────────────────────────
 const state = {
     version: null,
     champions: [],
     bans: [],
-    comps: [{ name: 'Comp 1', slots: [[], [], [], [], [], []] }],
+    comps: [{ name:'Comp 1', slots:[[],[],[],[],[],[]] }],
     members: [
-        { name: 'PUSH',          role: 'top',     pool: [], emoji: '' },
-        { name: 'GENISYS',       role: 'jungle',  pool: [], emoji: '' },
-        { name: 'CLUGMA',        role: 'mid',     pool: [], emoji: '' },
-        { name: 'LONGRARESOUND', role: 'bot',     pool: [], emoji: '' },
-        { name: 'IMP',           role: 'support', pool: [], emoji: '' },
-        { name: 'JART',          role: 'sub',     pool: [], emoji: '' },
+        { name:'PUSH',          role:'top',     pool:[], emoji:'' },
+        { name:'GENISYS',       role:'jungle',  pool:[], emoji:'' },
+        { name:'CLUGMA',        role:'mid',     pool:[], emoji:'' },
+        { name:'LONGRARESOUND', role:'bot',     pool:[], emoji:'' },
+        { name:'IMP',           role:'support', pool:[], emoji:'' },
+        { name:'JART',          role:'sub',     pool:[], emoji:'' },
     ]
 };
 
+// ─── Draft State ─────────────────────────────────────────────────────────────
+const draft = {
+    active:      false,
+    format:      3,
+    currentGame: 1,
+    blueSide:    'home',  // 'home' or 'away'
+    fearless:    [],      // champIds played in prior games (stacking)
+    games:       [],      // [{num, winner, picks:{blue:[],red:[]}, bans:{blue:[],red:[]}}]
+    slots:       Array(20).fill(null),
+    cursor:      0,       // next slot index to fill
+};
+
+let activeTab       = 'builder';
 let dragData        = null;
 let tagPickerTarget = null;
 let saveTimer       = null;
-let lastSavedJSON   = ''; // used to skip re-rendering our own writes
+let lastSavedJSON   = '';
 
-// Apply incoming Firestore data into state
+// ─── Apply Firebase data ──────────────────────────────────────────────────────
 function applyRecord(data) {
     if (data.members?.length) state.members = data.members;
-    if (data.comps?.length)   state.comps   = data.comps.map(comp => ({
+    if (data.comps?.length) state.comps = data.comps.map(comp => ({
         ...comp,
         slots: Array.isArray(comp.slots)
             ? comp.slots
             : Array.from({ length: 6 }, (_, i) => comp.slots[i] || [])
     }));
     state.bans = data.bans || [];
+
+    if (data.draft) {
+        const d = data.draft;
+        draft.active      = d.active      ?? false;
+        draft.format      = d.format      ?? 3;
+        draft.currentGame = d.currentGame ?? 1;
+        draft.blueSide    = d.blueSide    ?? 'home';
+        draft.fearless    = d.fearless    ?? [];
+        draft.games       = d.games       ?? [];
+        draft.slots       = d.slots       ?? Array(20).fill(null);
+        draft.cursor      = d.cursor      ?? 0;
+    }
 }
 
-// ─── Firebase: Real-time listener (replaces load + polling) ──────────────────
-// Returns a Promise that resolves once the initial data has been received.
+// ─── Firebase: Listener ──────────────────────────────────────────────────────
 function startListener() {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
         let ready = false;
         DOC.onSnapshot(doc => {
-            console.log('[Firebase] Snapshot received, exists:', doc.exists);
             const data = doc.data();
             if (data) {
                 const incoming = JSON.stringify(data);
                 if (incoming !== lastSavedJSON) {
-                    // Data changed from an external client — apply and re-render
                     lastSavedJSON = incoming;
                     applyRecord(data);
                     if (ready) {
@@ -668,45 +522,52 @@ function startListener() {
                         renderRoster(filterRoster());
                         renderAllComps();
                         renderMembers();
+                        if (activeTab === 'draft') renderDraftTab();
                         setStatus('live', '● Live');
                     }
                 }
             }
             if (!ready) { ready = true; resolve(); }
-        }, (err) => {
-            console.error('[Firebase] Listener error — code:', err.code);
-            console.error('[Firebase] Listener error — message:', err.message);
-            resolve();
-        });
+        }, err => { console.error(err); resolve(); });
     });
 }
 
-// ─── Firebase: Save (debounced) ───────────────────────────────────────────────
+// ─── Firebase: Save ──────────────────────────────────────────────────────────
 function scheduleSave() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveToDB, 1500);
+}
+function scheduleSaveImmediate() {
+    clearTimeout(saveTimer);
+    saveToDB();
 }
 
 async function saveToDB() {
     try {
         setStatus('saving', 'Saving…');
-        console.log('[Firebase] Attempting save...');
         const payload = {
             members: state.members.map(m => ({ ...m, pool: sortedPool(m.pool) })),
             comps:   state.comps.map(comp => ({
                 ...comp,
-                slots: Object.fromEntries(comp.slots.map((slot, i) => [i, slot]))
+                slots: Object.fromEntries(comp.slots.map((slot,i) => [i, slot]))
             })),
-            bans:    state.bans,
+            bans: state.bans,
+            draft: {
+                active:      draft.active,
+                format:      draft.format,
+                currentGame: draft.currentGame,
+                blueSide:    draft.blueSide,
+                fearless:    draft.fearless,
+                games:       draft.games,
+                slots:       draft.slots,
+                cursor:      draft.cursor,
+            },
         };
-        lastSavedJSON = JSON.stringify(payload); // pre-mark so snapshot echo is ignored
+        lastSavedJSON = JSON.stringify(payload);
         await DOC.set(payload);
-        console.log('[Firebase] Save successful');
         setStatus('saved', 'Saved ✓');
     } catch(err) {
-        console.error('[Firebase] Save failed — code:', err.code);
-        console.error('[Firebase] Save failed — message:', err.message);
-        console.error('[Firebase] Full error:', err);
+        console.error(err);
         setStatus('error', 'Save failed');
     }
 }
@@ -715,6 +576,17 @@ function setStatus(cls, text) {
     const el = document.getElementById('saveStatus');
     el.className = cls;
     el.textContent = text;
+}
+
+// ─── Tab System ──────────────────────────────────────────────────────────────
+function switchTab(tab) {
+    activeTab = tab;
+    document.getElementById('tabBuilder').style.display = tab === 'builder' ? '' : 'none';
+    document.getElementById('tabDraft').style.display   = tab === 'draft'   ? '' : 'none';
+    document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', (i === 0 && tab === 'builder') || (i === 1 && tab === 'draft'));
+    });
+    if (tab === 'draft') renderDraftTab();
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -772,18 +644,22 @@ async function loadChampions() {
         );
         state.champions = Object.values((await champRes.json()).data)
             .map(c => ({ id: c.id, name: c.name, image: c.image.full }))
-            .sort((a, b) => a.name.localeCompare(b.name));
+            .sort((a,b) => a.name.localeCompare(b.name));
     } catch {
         document.getElementById('championGrid').innerHTML =
-            '<div class="loading-msg">Failed to load. Check connection.</div>';
+            '<div class="loading-msg">Failed to load champions.</div>';
     }
 }
 
 function imgUrl(c) {
     return `https://ddragon.leagueoflegends.com/cdn/${state.version}/img/champion/${c.image}`;
 }
-function getChamp(id) { return state.champions.find(c => c.id === id); }
-function isBanned(id) { return state.bans.includes(id); }
+function imgUrlById(id) {
+    const c = getChamp(id);
+    return c ? imgUrl(c) : '';
+}
+function getChamp(id)  { return state.champions.find(c => c.id === id); }
+function isBanned(id)  { return state.bans.includes(id); }
 function filterRoster() {
     const q = document.getElementById('searchBox').value.trim().toLowerCase();
     return q ? state.champions.filter(c => c.name.toLowerCase().includes(q)) : state.champions;
@@ -793,26 +669,21 @@ function filterRoster() {
 function renderBans() {
     const zone  = document.getElementById('bansZone');
     const empty = document.getElementById('bansEmpty');
-    // Remove old ban-champ nodes, keep the empty hint
     zone.querySelectorAll('.ban-champ').forEach(el => el.remove());
-    if (state.bans.length === 0) {
-        empty.style.display = '';
-        return;
-    }
+    if (!state.bans.length) { empty.style.display = ''; return; }
     empty.style.display = 'none';
     state.bans.forEach(cid => {
         const c = getChamp(cid);
         if (!c) return;
         const div = document.createElement('div');
         div.className = 'ban-champ';
-        div.innerHTML = `
-            <img src="${imgUrl(c)}" alt="${c.name}" title="${c.name}">
+        div.innerHTML = `<img src="${imgUrl(c)}" alt="${c.name}" title="${c.name}">
             <button class="rm-btn" onclick="removeBan('${c.id}')">×</button>`;
         zone.appendChild(div);
     });
 }
 
-// ─── Render: Roster ───────────────────────────────────────────────────────────
+// ─── Render: Roster ──────────────────────────────────────────────────────────
 function renderRoster(list) {
     const grid = document.getElementById('championGrid');
     document.getElementById('champCount').textContent =
@@ -823,12 +694,11 @@ function renderRoster(list) {
              draggable="true" data-id="${c.id}" data-source="roster">
             <img src="${imgUrl(c)}" alt="${c.name}" loading="lazy">
             <div class="tip">${c.name}</div>
-        </div>
-    `).join('');
-    grid.querySelectorAll('.roster-champ').forEach(el =>
-        el.addEventListener('dragstart', onDragStart));
+        </div>`).join('');
+    grid.querySelectorAll('.roster-champ').forEach(el => el.addEventListener('dragstart', onDragStart));
 }
 
+// ─── Render: All Comps ───────────────────────────────────────────────────────
 function getPoolTag(champId) {
     for (const m of state.members) {
         const item = m.pool.find(p => p.id === champId);
@@ -837,7 +707,6 @@ function getPoolTag(champId) {
     return '';
 }
 
-// ─── Render: All Comps ────────────────────────────────────────────────────────
 function renderAllComps() {
     const container = document.getElementById('compsContainer');
     container.innerHTML = state.comps.map((comp, ci) => `
@@ -847,18 +716,15 @@ function renderAllComps() {
                        value="${escHtml(comp.name)}"
                        onchange="state.comps[${ci}].name = this.value">
                 ${state.comps.length > 1
-                    ? `<button class="comp-del-btn" onclick="deleteComp(${ci})">×</button>`
-                    : ''}
+                    ? `<button class="comp-del-btn" onclick="deleteComp(${ci})">×</button>` : ''}
             </div>
             <div class="comp-slots">
-                ${ROLES.slice(0, 5).map((role, ri) => {
-                    const ids = comp.slots[ri];
-                    return `
-                    <div class="role-col">
+                ${ROLES.slice(0,5).map((role, ri) => {
+                    const ids = comp.slots[ri] || [];
+                    return `<div class="role-col">
                         <div class="role-label">${ROLE_ICONS[ri]} ${role}</div>
                         <div class="role-drop-zone ${ids.length ? 'has-champs' : ''}"
-                             ondragover="onDragOver(event)"
-                             ondragleave="onDragLeave(event)"
+                             ondragover="onDragOver(event)" ondragleave="onDragLeave(event)"
                              ondrop="onDropComp(event,${ci},${ri})">
                             ${ids.length
                                 ? ids.map(cid => {
@@ -868,8 +734,7 @@ function renderAllComps() {
                                          data-tag="${getPoolTag(c.id)}"
                                          oncontextmenu="event.preventDefault(); removeFromSlot(${ci},${ri},'${c.id}')">
                                         <img src="${imgUrl(c)}" alt="${c.name}" title="${c.name}">
-                                        <button class="rm-btn"
-                                            onclick="removeFromSlot(${ci},${ri},'${c.id}')">×</button>
+                                        <button class="rm-btn" onclick="removeFromSlot(${ci},${ri},'${c.id}')">×</button>
                                         <div class="champ-lbl">${c.name}</div>
                                     </div>` : '';
                                 }).join('')
@@ -878,11 +743,10 @@ function renderAllComps() {
                     </div>`;
                 }).join('')}
             </div>
-        </div>
-    `).join('');
+        </div>`).join('');
 }
 
-// ─── Render: Members ──────────────────────────────────────────────────────────
+// ─── Render: Members ─────────────────────────────────────────────────────────
 function renderMembers() {
     const container = document.getElementById('membersContainer');
     container.innerHTML = state.members.map((m, mi) => {
@@ -893,27 +757,23 @@ function renderMembers() {
                 const c = getChamp(item.id);
                 return c ? `
                     <div class="pool-champ ${isBanned(c.id) ? 'banned' : ''}"
-                         draggable="true"
-                         data-id="${c.id}" data-source="pool" data-member="${mi}"
-                         data-tag="${item.tag || ''}"
+                         draggable="true" data-id="${c.id}" data-source="pool" data-member="${mi}"
+                         data-tag="${item.tag||''}"
                          ondragover="onPoolChampDragOver(event,${mi})"
                          ondragleave="onPoolChampDragLeave(event)"
                          ondrop="onDropReorder(event,${mi},'${c.id}')"
                          oncontextmenu="event.preventDefault(); removeFromPool(${mi},'${c.id}')">
                         <img src="${imgUrl(c)}" alt="${c.name}" title="${c.name}">
-                        <button class="rm-btn"
-                                onclick="event.stopPropagation(); removeFromPool(${mi},'${c.id}')">×</button>
+                        <button class="rm-btn" onclick="event.stopPropagation(); removeFromPool(${mi},'${c.id}')">×</button>
                         <div class="pool-tag-bar"></div>
                     </div>` : '';
             }).join('');
-
         return `
         <div class="member-row">
             <div class="member-meta">
                 <div class="member-name-row">
                     <input class="member-name-input" type="text"
-                           value="${escHtml(m.name)}"
-                           placeholder="Player ${mi+1}"
+                           value="${escHtml(m.name)}" placeholder="Player ${mi+1}"
                            onchange="state.members[${mi}].name = this.value; scheduleSave()">
                 </div>
                 <div class="role-label-static">${getRoleDisplay(m.role)}</div>
@@ -934,6 +794,348 @@ function renderMembers() {
             openTagPicker(e, +this.dataset.member, this.dataset.id);
         });
     });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DRAFT LOGIC
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function startSeries(format) {
+    draft.active      = true;
+    draft.format      = format;
+    draft.currentGame = 1;
+    draft.blueSide    = 'home';
+    draft.fearless    = [];
+    draft.games       = [];
+    draft.slots       = Array(20).fill(null);
+    draft.cursor      = 0;
+    scheduleSaveImmediate();
+    renderDraftTab();
+}
+
+function endSeries() {
+    if (!confirm('End the series? All draft progress will be cleared.')) return;
+    draft.active      = false;
+    draft.format      = null;
+    draft.currentGame = 1;
+    draft.blueSide    = 'home';
+    draft.fearless    = [];
+    draft.games       = [];
+    draft.slots       = Array(20).fill(null);
+    draft.cursor      = 0;
+    scheduleSaveImmediate();
+    renderDraftTab();
+}
+
+function flipSides() {
+    draft.blueSide = draft.blueSide === 'home' ? 'away' : 'home';
+    scheduleSave();
+    renderDraftTab();
+}
+
+// Which champIds are currently banned in this draft (bans phase only, not fearless)
+function currentDraftBans() {
+    const banned = [];
+    for (let i = 0; i < draft.cursor; i++) {
+        if (DRAFT_SEQ[i].a === 'ban' && draft.slots[i]) banned.push(draft.slots[i]);
+    }
+    return banned;
+}
+
+// All champIds unavailable for picking right now
+function unavailableChamps() {
+    const set = new Set(draft.fearless);
+    draft.slots.forEach(id => { if (id) set.add(id); });
+    return set;
+}
+
+// Select a champion for the current draft slot
+function draftSelectChamp(champId) {
+    if (draft.cursor >= 20) return;
+    const unavail = unavailableChamps();
+    if (unavail.has(champId)) return;
+    draft.slots[draft.cursor] = champId;
+    draft.cursor++;
+    scheduleSave();
+    renderDraftTab();
+}
+
+// Undo last pick/ban
+function draftUndo() {
+    if (draft.cursor === 0) return;
+    draft.cursor--;
+    draft.slots[draft.cursor] = null;
+    scheduleSave();
+    renderDraftTab();
+}
+
+// Commit game: add all picks to fearless, move to next game
+function commitGame() {
+    if (draft.cursor < 20) return;
+    // Show winner modal
+    document.getElementById('winnerGameLabel').textContent =
+        `Game ${draft.currentGame} — Who Won?`;
+    document.getElementById('winnerOverlay').style.display = 'flex';
+}
+
+function recordWinner(winner) {
+    document.getElementById('winnerOverlay').style.display = 'none';
+
+    // Get picks from current game
+    const bluePicks = BLUE_PICK_SLOTS.map(i => draft.slots[i]).filter(Boolean);
+    const redPicks  = RED_PICK_SLOTS.map(i  => draft.slots[i]).filter(Boolean);
+    const blueBans  = BLUE_BAN_SLOTS.map(i  => draft.slots[i]).filter(Boolean);
+    const redBans   = RED_BAN_SLOTS.map(i   => draft.slots[i]).filter(Boolean);
+
+    // Map blue/red to home/away
+    const isHomeBlue = draft.blueSide === 'home';
+    const homePicks  = isHomeBlue ? bluePicks : redPicks;
+    const awayPicks  = isHomeBlue ? redPicks  : bluePicks;
+
+    draft.games.push({
+        num:    draft.currentGame,
+        winner: winner,
+        picks:  { blue: bluePicks, red: redPicks },
+        bans:   { blue: blueBans,  red: redBans  },
+    });
+
+    // Add all played champions to fearless
+    const played = [...bluePicks, ...redPicks];
+    played.forEach(id => { if (!draft.fearless.includes(id)) draft.fearless.push(id); });
+
+    draft.currentGame++;
+    draft.slots  = Array(20).fill(null);
+    draft.cursor = 0;
+
+    scheduleSaveImmediate();
+    renderDraftTab();
+}
+
+// ─── Render: Draft Tab ───────────────────────────────────────────────────────
+function renderDraftTab() {
+    renderDraftPools();
+    renderDraftCompsRef();
+
+    const setup  = document.getElementById('draftSetup');
+    const active = document.getElementById('draftActive');
+
+    if (!draft.active) {
+        setup.style.display  = 'flex';
+        active.style.display = 'none';
+        return;
+    }
+    setup.style.display  = 'none';
+    active.style.display = 'flex';
+
+    // Series label
+    const maxGames = draft.format;
+    document.getElementById('draftSeriesLabel').textContent =
+        `Game ${draft.currentGame} · BO${draft.format}`;
+
+    // Score
+    const homeWins = draft.games.filter(g => {
+        if (g.winner === 'home') return true;
+        if (g.winner === 'away') return false;
+        return false;
+    }).length;
+    const awayWins = draft.games.filter(g => g.winner === 'away').length;
+    document.getElementById('draftScore').textContent =
+        `HOME ${homeWins} — ${awayWins} AWAY`;
+
+    // Fearless row
+    const fearlessEl = document.getElementById('fearlessChamps');
+    if (draft.fearless.length === 0) {
+        fearlessEl.innerHTML = '<span style="color:#2a2a2a;font-size:11px">None yet</span>';
+    } else {
+        fearlessEl.innerHTML = draft.fearless.map(id => {
+            const c = getChamp(id);
+            return c ? `<img class="fearless-champ" src="${imgUrl(c)}" title="${c.name}">` : '';
+        }).join('');
+    }
+
+    // Flip button: only active before draft starts (cursor === 0)
+    document.getElementById('flipBtn').disabled = draft.cursor > 0;
+
+    // Draft board
+    renderDraftBoard();
+
+    // Status bar
+    renderDraftStatus();
+
+    // Champion picker
+    renderDraftPicker();
+}
+
+function renderDraftBoard() {
+    const isHomeBlue = draft.blueSide === 'home';
+    const homeTeam   = isHomeBlue ? 'blue' : 'red';
+    const awayTeam   = isHomeBlue ? 'red'  : 'blue';
+
+    const homeBanSlots  = isHomeBlue ? BLUE_BAN_SLOTS  : RED_BAN_SLOTS;
+    const homePickSlots = isHomeBlue ? BLUE_PICK_SLOTS : RED_PICK_SLOTS;
+    const awayBanSlots  = isHomeBlue ? RED_BAN_SLOTS   : BLUE_BAN_SLOTS;
+    const awayPickSlots = isHomeBlue ? RED_PICK_SLOTS  : BLUE_PICK_SLOTS;
+
+    function cellClass(slotIdx, action) {
+        if (draft.cursor !== slotIdx) return '';
+        const team = DRAFT_SEQ[slotIdx].t; // 'blue' or 'red'
+        return action === 'ban'
+            ? (team === 'blue' ? 'blue-active' : 'red-active')
+            : (team === 'blue' ? 'blue-active' : 'red-active');
+    }
+
+    function banCell(slotIdx) {
+        const id  = draft.slots[slotIdx];
+        const cls = cellClass(slotIdx, 'ban');
+        if (id) {
+            const c = getChamp(id);
+            return `<div class="draft-ban-cell ${cls}">${c ? `<img src="${imgUrl(c)}" title="${c.name}">` : '×'}</div>`;
+        }
+        return `<div class="draft-ban-cell ${cls}">🚫</div>`;
+    }
+
+    function pickCell(slotIdx, pickNum) {
+        const id  = draft.slots[slotIdx];
+        const cls = cellClass(slotIdx, 'pick');
+        if (id) {
+            const c = getChamp(id);
+            const fearCls = draft.fearless.includes(id) ? 'fearless' : '';
+            return `<div class="draft-pick-cell ${cls} ${fearCls}">
+                ${c ? `<img src="${imgUrl(c)}" title="${c.name}">
+                       <div class="pick-name">${c.name}</div>` : '<span>?</span>'}
+            </div>`;
+        }
+        return `<div class="draft-pick-cell ${cls}"><span class="pick-num">P${pickNum}</span></div>`;
+    }
+
+    const homeBans  = homeBanSlots.map(i => banCell(i)).join('');
+    const awayBans  = awayBanSlots.map(i => banCell(i)).join('');
+    const homePicks = homePickSlots.map((si, pi) => pickCell(si, pi+1)).join('');
+    const awayPicks = awayPickSlots.map((si, pi) => pickCell(si, pi+1)).join('');
+
+    const homeColor = homeTeam === 'blue' ? 'blue' : 'red';
+    const awayColor = awayTeam === 'blue' ? 'blue' : 'red';
+
+    document.getElementById('draftBoard').innerHTML = `
+        <div class="draft-team-col">
+            <div class="draft-team-label ${homeColor}">HOME · ${homeTeam === 'blue' ? 'Blue Side' : 'Red Side'}</div>
+            <div class="draft-bans-row">${homeBans}</div>
+            <div class="draft-picks-col">${homePicks}</div>
+        </div>
+        <div class="draft-vs"><span class="draft-vs-label">VS</span></div>
+        <div class="draft-team-col red-col">
+            <div class="draft-team-label ${awayColor}" style="text-align:right">AWAY · ${awayTeam === 'blue' ? 'Blue Side' : 'Red Side'}</div>
+            <div class="draft-bans-row" style="flex-direction:row-reverse">${awayBans}</div>
+            <div class="draft-picks-col" style="align-items:flex-end">${awayPicks}</div>
+        </div>`;
+}
+
+function renderDraftStatus() {
+    const cursor = draft.cursor;
+    const gameStartBtn = document.getElementById('gameStartBtn');
+
+    if (cursor >= 20) {
+        document.getElementById('draftTurnLabel').innerHTML =
+            'Draft complete — ready to <span>start the game</span>';
+        gameStartBtn.disabled = false;
+        return;
+    }
+
+    gameStartBtn.disabled = true;
+    const step  = DRAFT_SEQ[cursor];
+    const isHomeBlue = draft.blueSide === 'home';
+    const team  = (step.t === 'blue') === isHomeBlue ? 'HOME' : 'AWAY';
+    const color = step.t === 'blue' ? '#4e9eff' : '#ff5555';
+    const action = step.a === 'ban' ? 'banning' : 'picking';
+    document.getElementById('draftTurnLabel').innerHTML =
+        `<span style="color:${color};font-weight:700">${team}</span> is ${action}
+         <button class="draft-btn" style="margin-left:10px" onclick="draftUndo()">↩ Undo</button>`;
+}
+
+function renderDraftPicker() {
+    const q       = (document.getElementById('draftSearch')?.value || '').trim().toLowerCase();
+    const unavail = unavailableChamps();
+    let list = state.champions;
+    if (q) list = list.filter(c => c.name.toLowerCase().includes(q));
+
+    const grid = document.getElementById('draftChampGrid');
+    if (!grid) return;
+
+    const done = draft.cursor >= 20;
+    grid.innerHTML = list.map(c => {
+        const off = unavail.has(c.id) || done;
+        return `<div class="draft-roster-champ ${off ? 'unavailable' : ''}"
+                     onclick="${off ? '' : `draftSelectChamp('${c.id}')`}">
+            <img src="${imgUrl(c)}" alt="${c.name}" loading="lazy">
+            <div class="tip">${c.name}</div>
+        </div>`;
+    }).join('');
+}
+
+function renderDraftPools() {
+    const container = document.getElementById('draftMembersContainer');
+    if (!container) return;
+    const unavail = unavailableChamps();
+
+    container.innerHTML = state.members.map(m => {
+        const display = sortedPool(m.pool);
+        if (!display.length) return `
+            <div class="draft-member-row">
+                <div class="draft-member-name">${escHtml(m.name)}<br>
+                    <span style="font-size:10px;color:#444">${getRoleDisplay(m.role)}</span>
+                </div>
+                <div style="color:#2a2a2a;font-size:11px">No pool</div>
+            </div>`;
+        return `
+            <div class="draft-member-row">
+                <div class="draft-member-name">${escHtml(m.name)}<br>
+                    <span style="font-size:10px;color:#444">${getRoleDisplay(m.role)}</span>
+                </div>
+                <div class="draft-member-pool">
+                    ${display.map(item => {
+                        const c = getChamp(item.id);
+                        if (!c) return '';
+                        const isFearless = draft.fearless.includes(c.id);
+                        const isDraftBan = currentDraftBans().includes(c.id);
+                        return `<div class="draft-pool-champ ${isFearless ? 'fearless-banned' : ''} ${isDraftBan ? 'draft-banned' : ''}"
+                                     data-tag="${item.tag||''}">
+                            <img src="${imgUrl(c)}" title="${c.name}">
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>`;
+    }).join('');
+}
+
+function renderDraftCompsRef() {
+    const container = document.getElementById('draftCompsContainer');
+    if (!container) return;
+    container.innerHTML = state.comps.map((comp, ci) => `
+        <div class="comp-block">
+            <div class="comp-header">
+                <span style="font-weight:700;font-size:12px;color:#aaa">${escHtml(comp.name)}</span>
+            </div>
+            <div class="comp-slots">
+                ${ROLES.slice(0,5).map((role, ri) => {
+                    const ids = comp.slots[ri] || [];
+                    return `<div class="role-col">
+                        <div class="role-label">${ROLE_ICONS[ri]} ${role}</div>
+                        <div class="role-drop-zone ${ids.length ? 'has-champs' : ''}">
+                            ${ids.length
+                                ? ids.map(cid => {
+                                    const c = getChamp(cid);
+                                    return c ? `
+                                    <div class="comp-champ" data-tag="${getPoolTag(c.id)}"
+                                         title="${c.name}">
+                                        <img src="${imgUrl(c)}" alt="${c.name}">
+                                    </div>` : '';
+                                }).join('')
+                                : '<span class="slot-placeholder">+</span>'}
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>
+        </div>`).join('');
 }
 
 // ─── Tag Picker ───────────────────────────────────────────────────────────────
@@ -966,155 +1168,115 @@ function onDropBan(e) {
     if (!dragData) return;
     if (!state.bans.includes(dragData.champId)) {
         state.bans.push(dragData.champId);
-        renderBans();
-        renderRoster(filterRoster());
-        renderMembers();
-        renderAllComps();
+        renderBans(); renderRoster(filterRoster()); renderMembers(); renderAllComps();
         scheduleSave();
     }
     dragData = null;
 }
 function removeBan(champId) {
     state.bans = state.bans.filter(id => id !== champId);
-    renderBans();
-    renderRoster(filterRoster());
-    renderMembers();
-    renderAllComps();
+    renderBans(); renderRoster(filterRoster()); renderMembers(); renderAllComps();
     scheduleSave();
 }
 function clearBans() {
     if (!state.bans.length) return;
     state.bans = [];
-    renderBans();
-    renderRoster(filterRoster());
-    renderMembers();
-    renderAllComps();
+    renderBans(); renderRoster(filterRoster()); renderMembers(); renderAllComps();
     scheduleSave();
 }
 
 // ─── Comp Management ─────────────────────────────────────────────────────────
 function addComp() {
-    state.comps.push({ name: `Comp ${state.comps.length + 1}`, slots: [[], [], [], [], [], []] });
-    renderAllComps();
-    scheduleSave();
+    state.comps.push({ name:`Comp ${state.comps.length+1}`, slots:[[],[],[],[],[],[]] });
+    renderAllComps(); scheduleSave();
 }
 function deleteComp(idx) {
     if (state.comps.length === 1) return;
     state.comps.splice(idx, 1);
-    renderAllComps();
-    scheduleSave();
+    renderAllComps(); scheduleSave();
 }
 
 // ─── Drag & Drop ─────────────────────────────────────────────────────────────
 function onDragStart(e) {
     closeTagPicker();
     const el = e.currentTarget;
-    dragData = {
-        champId:   el.dataset.id,
-        source:    el.dataset.source,
-        memberIdx: el.dataset.member != null ? +el.dataset.member : null,
-    };
+    dragData = { champId:el.dataset.id, source:el.dataset.source, memberIdx: el.dataset.member != null ? +el.dataset.member : null };
     e.dataTransfer.effectAllowed = 'copy';
     e.dataTransfer.setData('text/plain', el.dataset.id);
 }
-function onDragOver(e) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-    e.currentTarget.classList.add('drag-over');
+function onDragOver(e)     { e.preventDefault(); e.dataTransfer.dropEffect='copy'; e.currentTarget.classList.add('drag-over'); }
+function onPoolBgDragOver(e, mi) {
+    if (dragData?.source === 'pool' && dragData?.memberIdx === mi) return;
+    e.preventDefault(); e.dataTransfer.dropEffect='copy'; e.currentTarget.classList.add('drag-over');
 }
-function onPoolBgDragOver(e, memberIdx) {
-    if (dragData?.source === 'pool' && dragData?.memberIdx === memberIdx) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-    e.currentTarget.classList.add('drag-over');
-}
-function onDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
-
-function onPoolChampDragOver(e, memberIdx) {
-    if (!dragData || dragData.source !== 'pool' || dragData.memberIdx !== memberIdx) return;
-    e.preventDefault();
-    e.stopPropagation();
-    e.currentTarget.classList.add('insert-before');
+function onDragLeave(e)    { e.currentTarget.classList.remove('drag-over'); }
+function onPoolChampDragOver(e, mi) {
+    if (!dragData || dragData.source !== 'pool' || dragData.memberIdx !== mi) return;
+    e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('insert-before');
 }
 function onPoolChampDragLeave(e) { e.currentTarget.classList.remove('insert-before'); }
 
-function onDropReorder(e, memberIdx, targetId) {
-    e.preventDefault();
-    e.stopPropagation();
-    e.currentTarget.classList.remove('insert-before');
+function onDropReorder(e, mi, targetId) {
+    e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('insert-before');
     if (!dragData) return;
-    if (dragData.source !== 'pool' || dragData.memberIdx !== memberIdx) {
-        const pool = state.members[memberIdx].pool;
+    if (dragData.source !== 'pool' || dragData.memberIdx !== mi) {
+        const pool = state.members[mi].pool;
         if (!pool.find(p => p.id === dragData.champId)) {
-            pool.push({ id: dragData.champId, tag: '' });
-            renderMembers();
-            scheduleSave();
+            pool.push({ id:dragData.champId, tag:'' });
+            renderMembers(); scheduleSave();
         }
-        dragData = null;
-        return;
+        dragData = null; return;
     }
     if (dragData.champId === targetId) { dragData = null; return; }
-    const m      = state.members[memberIdx];
+    const m = state.members[mi];
     const sorted = sortedPool(m.pool);
-    const from   = sorted.findIndex(p => p.id === dragData.champId);
-    const to     = sorted.findIndex(p => p.id === targetId);
+    const from = sorted.findIndex(p => p.id === dragData.champId);
+    const to   = sorted.findIndex(p => p.id === targetId);
     if (from === -1 || to === -1) { dragData = null; return; }
     const [moved] = sorted.splice(from, 1);
     sorted.splice(to, 0, moved);
     m.pool = sorted;
-    renderMembers();
-    scheduleSave();
+    renderMembers(); scheduleSave();
     dragData = null;
 }
 
-function onDropPool(e, memberIdx) {
-    e.preventDefault();
-    e.currentTarget.classList.remove('drag-over');
+function onDropPool(e, mi) {
+    e.preventDefault(); e.currentTarget.classList.remove('drag-over');
     if (!dragData) return;
-    if (dragData.source === 'pool' && dragData.memberIdx === memberIdx) { dragData = null; return; }
-    const pool = state.members[memberIdx].pool;
+    if (dragData.source === 'pool' && dragData.memberIdx === mi) { dragData = null; return; }
+    const pool = state.members[mi].pool;
     if (!pool.find(p => p.id === dragData.champId)) {
-        pool.push({ id: dragData.champId, tag: '' });
-        renderMembers();
-        scheduleSave();
+        pool.push({ id:dragData.champId, tag:'' });
+        renderMembers(); scheduleSave();
     }
     dragData = null;
 }
 
-function onDropComp(e, compIdx, roleIdx) {
-    e.preventDefault();
-    e.currentTarget.classList.remove('drag-over');
+function onDropComp(e, ci, ri) {
+    e.preventDefault(); e.currentTarget.classList.remove('drag-over');
     if (!dragData) return;
-    const slot = state.comps[compIdx].slots[roleIdx];
+    const slot = state.comps[ci].slots[ri];
     if (!slot.includes(dragData.champId)) {
         slot.push(dragData.champId);
-        renderAllComps();
-        scheduleSave();
+        renderAllComps(); scheduleSave();
     }
     dragData = null;
 }
 
 // ─── Remove ──────────────────────────────────────────────────────────────────
-function removeFromSlot(compIdx, roleIdx, champId) {
-    state.comps[compIdx].slots[roleIdx] =
-        state.comps[compIdx].slots[roleIdx].filter(id => id !== champId);
-    renderAllComps();
-    scheduleSave();
+function removeFromSlot(ci, ri, champId) {
+    state.comps[ci].slots[ri] = state.comps[ci].slots[ri].filter(id => id !== champId);
+    renderAllComps(); scheduleSave();
 }
-function removeFromPool(memberIdx, champId) {
-    state.members[memberIdx].pool =
-        state.members[memberIdx].pool.filter(p => p.id !== champId);
-    renderMembers();
-    scheduleSave();
+function removeFromPool(mi, champId) {
+    state.members[mi].pool = state.members[mi].pool.filter(p => p.id !== champId);
+    renderMembers(); scheduleSave();
 }
 
-// ─── Delegated saves for inline edits ────────────────────────────────────────
+// ─── Delegated saves ─────────────────────────────────────────────────────────
 document.getElementById('membersContainer').addEventListener('change', scheduleSave);
 document.getElementById('compsContainer').addEventListener('change', scheduleSave);
-
-// ─── Search ──────────────────────────────────────────────────────────────────
-document.getElementById('searchBox').addEventListener('input', () =>
-    renderRoster(filterRoster()));
+document.getElementById('searchBox').addEventListener('input', () => renderRoster(filterRoster()));
 
 // ─── Util ─────────────────────────────────────────────────────────────────────
 function escHtml(s) {
@@ -1124,6 +1286,6 @@ function escHtml(s) {
 init();
 </script>
 
-<div style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#333;pointer-events:none;z-index:9999;letter-spacing:1px;">v2</div>
+<div style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#333;pointer-events:none;z-index:9999;letter-spacing:1px;">v3</div>
 </body>
 </html>
