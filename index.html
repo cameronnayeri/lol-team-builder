@@ -138,7 +138,9 @@
         .role-col.core .role-drop-zone { border-color:#2ecc7130; background:#091209; }
         .role-col.core .role-drop-zone.has-champs { border-color:#2ecc7150; }
         .slot-placeholder { font-size:14px; color:#2a2a2a; pointer-events:none; user-select:none; align-self:center; }
-        .comp-champ { position:relative; width:40px; }
+        .comp-champ { position:relative; width:40px; cursor:grab; }
+        .comp-champ:active { cursor:grabbing; }
+        .comp-champ.insert-before { box-shadow:-3px 0 0 #fff; }
         .comp-champ img { width:40px; height:40px; object-fit:cover; border-radius:2px; border:1px solid #2a2a2a; display:block; }
         .comp-champ[data-tag="best"]         img { border-color:#e74c3c; }
         .comp-champ[data-tag="great"]        img { border-color:#e67e22; }
@@ -774,7 +776,12 @@ function renderAllComps() {
                                     const c = getChamp(cid);
                                     return c ? `
                                     <div class="comp-champ ${isBanned(c.id) ? 'banned' : ''}"
+                                         draggable="true"
                                          data-tag="${getPoolTag(c.id)}"
+                                         ondragstart="onCompChampDragStart(event,${ci},${ri},'${c.id}')"
+                                         ondragover="onCompChampDragOver(event,${ci},${ri})"
+                                         ondragleave="onCompChampDragLeave(event)"
+                                         ondrop="onDropCompReorder(event,${ci},${ri},'${c.id}')"
                                          oncontextmenu="event.preventDefault(); removeFromSlot(${ci},${ri},'${c.id}')">
                                         <img src="${imgUrl(c)}" alt="${c.name}" title="${c.name}">
                                         <button class="rm-btn" onclick="removeFromSlot(${ci},${ri},'${c.id}')">×</button>
@@ -1386,6 +1393,46 @@ function onDropComp(e, ci, ri) {
     if (!slot.includes(dragData.champId)) {
         slot.push(dragData.champId);
         renderAllComps(); scheduleSave();
+    }
+    dragData = null;
+}
+
+// ─── Comp Slot Champion Reorder ──────────────────────────────────────────────
+function onCompChampDragStart(e, ci, ri, champId) {
+    dragData = { champId, source:'comp-slot', compIdx:ci, roleIdx:ri };
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', champId);
+    e.stopPropagation();
+}
+function onCompChampDragOver(e, ci, ri) {
+    if (!dragData || dragData.source !== 'comp-slot' || dragData.compIdx !== ci || dragData.roleIdx !== ri) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.classList.add('insert-before');
+}
+function onCompChampDragLeave(e) {
+    e.currentTarget.classList.remove('insert-before');
+}
+function onDropCompReorder(e, ci, ri, targetId) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.classList.remove('insert-before');
+    if (!dragData) return;
+    const slot = state.comps[ci].slots[ri];
+    if (dragData.source === 'comp-slot' && dragData.compIdx === ci && dragData.roleIdx === ri) {
+        const from = slot.indexOf(dragData.champId);
+        const to   = slot.indexOf(targetId);
+        if (from !== -1 && to !== -1 && from !== to) {
+            slot.splice(from, 1);
+            slot.splice(to, 0, dragData.champId);
+            renderAllComps();
+            scheduleSave();
+        }
+    } else if (dragData.champId && !slot.includes(dragData.champId)) {
+        const to = slot.indexOf(targetId);
+        slot.splice(to !== -1 ? to : slot.length, 0, dragData.champId);
+        renderAllComps();
+        scheduleSave();
     }
     dragData = null;
 }
