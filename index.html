@@ -256,21 +256,7 @@
         }
         .member-name-input:focus { border-bottom-color: #666; }
         .member-name-row { display: flex; align-items: center; gap: 4px; width: 100%; }
-        .emoji-input {
-            width: 26px;
-            flex-shrink: 0;
-            background: transparent;
-            border: none;
-            border-bottom: 1px solid #2a2a2a;
-            color: #e0e0e0;
-            font-size: 14px;
-            text-align: center;
-            padding: 2px 0;
-            border-radius: 0;
-            outline: none;
-        }
-        .emoji-input:focus { border-bottom-color: #666; }
-        .role-label-static { font-size: 12px; color: #555; padding: 2px 0; }
+.role-label-static { font-size: 12px; color: #555; padding: 2px 0; }
 
         .member-pool {
             flex: 1;
@@ -459,6 +445,11 @@
             border: 1px solid #2a2a2a;
             display: block;
         }
+        .comp-champ[data-tag="best"]         img { border-color: #e74c3c; }
+        .comp-champ[data-tag="great"]        img { border-color: #e67e22; }
+        .comp-champ[data-tag="decent"]       img { border-color: #d4ac0d; }
+        .comp-champ[data-tag="questionable"] img { border-color: #2ecc71; }
+        .comp-champ[data-tag="stretch"]      img { border-color: #3498db; }
         .comp-champ .champ-lbl {
             font-size: 9px;
             color: #555;
@@ -838,6 +829,14 @@ function renderRoster(list) {
         el.addEventListener('dragstart', onDragStart));
 }
 
+function getPoolTag(champId) {
+    for (const m of state.members) {
+        const item = m.pool.find(p => p.id === champId);
+        if (item) return item.tag || '';
+    }
+    return '';
+}
+
 // ─── Render: All Comps ────────────────────────────────────────────────────────
 function renderAllComps() {
     const container = document.getElementById('compsContainer');
@@ -852,7 +851,7 @@ function renderAllComps() {
                     : ''}
             </div>
             <div class="comp-slots">
-                ${ROLES.map((role, ri) => {
+                ${ROLES.slice(0, 5).map((role, ri) => {
                     const ids = comp.slots[ri];
                     return `
                     <div class="role-col">
@@ -866,6 +865,7 @@ function renderAllComps() {
                                     const c = getChamp(cid);
                                     return c ? `
                                     <div class="comp-champ ${isBanned(c.id) ? 'banned' : ''}"
+                                         data-tag="${getPoolTag(c.id)}"
                                          oncontextmenu="event.preventDefault(); removeFromSlot(${ci},${ri},'${c.id}')">
                                         <img src="${imgUrl(c)}" alt="${c.name}" title="${c.name}">
                                         <button class="rm-btn"
@@ -915,10 +915,6 @@ function renderMembers() {
                            value="${escHtml(m.name)}"
                            placeholder="Player ${mi+1}"
                            onchange="state.members[${mi}].name = this.value; scheduleSave()">
-                    <input class="emoji-input" type="text" maxlength="2"
-                           value="${escHtml(m.emoji||'')}"
-                           placeholder="…"
-                           onchange="state.members[${mi}].emoji = this.value; scheduleSave()">
                 </div>
                 <div class="role-label-static">${getRoleDisplay(m.role)}</div>
             </div>
