@@ -244,7 +244,8 @@
             flex-shrink: 0;
         }
         .member-name-input {
-            width: 100%;
+            flex: 1;
+            min-width: 0;
             font-weight: 700;
             font-size: 13px;
             border: none;
@@ -254,7 +255,22 @@
             padding: 2px 0;
         }
         .member-name-input:focus { border-bottom-color: #666; }
-        .role-select { width: 100%; font-size: 12px; cursor: pointer; }
+        .member-name-row { display: flex; align-items: center; gap: 4px; width: 100%; }
+        .emoji-input {
+            width: 26px;
+            flex-shrink: 0;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid #2a2a2a;
+            color: #e0e0e0;
+            font-size: 14px;
+            text-align: center;
+            padding: 2px 0;
+            border-radius: 0;
+            outline: none;
+        }
+        .emoji-input:focus { border-bottom-color: #666; }
+        .role-label-static { font-size: 12px; color: #555; padding: 2px 0; }
 
         .member-pool {
             flex: 1;
@@ -595,9 +611,14 @@ const db  = firebase.firestore();
 const DOC = db.collection('teambuilder').doc('data');
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const ROLES      = ['Top', 'Jungle', 'Mid', 'Bot', 'Support'];
-const ROLE_ICONS = ['⚔', '🌿', '✨', '💰', '🛡'];
-const ROLE_VALS  = ['top', 'jungle', 'mid', 'bot', 'support'];
+const ROLES      = ['Top', 'Jungle', 'Mid', 'Bot', 'Support', 'Sub'];
+const ROLE_ICONS = ['⚔', '🌿', '✨', '💰', '🛡', '⭐'];
+const ROLE_VALS  = ['top', 'jungle', 'mid', 'bot', 'support', 'sub'];
+
+function getRoleDisplay(role) {
+    const idx = ROLE_VALS.indexOf(role);
+    return idx === -1 ? role : `${ROLE_ICONS[idx]} ${ROLES[idx]}`;
+}
 const TAG_ORDER  = { 'best': 0, 'great': 1, 'decent': 2, 'questionable': 3, 'stretch': 4, '': 5 };
 
 function sortedPool(pool) {
@@ -611,12 +632,12 @@ const state = {
     bans: [],
     comps: [{ name: 'Comp 1', slots: [[], [], [], [], []] }],
     members: [
-        { name: 'PUSH',          role: 'top',     pool: [] },
-        { name: 'GENISYS',       role: 'jungle',  pool: [] },
-        { name: 'CLUGMA',        role: 'mid',     pool: [] },
-        { name: 'LONGRARESOUND', role: 'bot',     pool: [] },
-        { name: 'IMP',           role: 'support', pool: [] },
-        { name: 'JART',          role: 'top',     pool: [] },
+        { name: 'PUSH',          role: 'top',     pool: [], emoji: '' },
+        { name: 'GENISYS',       role: 'jungle',  pool: [], emoji: '' },
+        { name: 'CLUGMA',        role: 'mid',     pool: [], emoji: '' },
+        { name: 'LONGRARESOUND', role: 'bot',     pool: [], emoji: '' },
+        { name: 'IMP',           role: 'support', pool: [], emoji: '' },
+        { name: 'JART',          role: 'sub',     pool: [], emoji: '' },
     ]
 };
 
@@ -844,7 +865,8 @@ function renderAllComps() {
                                 ? ids.map(cid => {
                                     const c = getChamp(cid);
                                     return c ? `
-                                    <div class="comp-champ ${isBanned(c.id) ? 'banned' : ''}">
+                                    <div class="comp-champ ${isBanned(c.id) ? 'banned' : ''}"
+                                         oncontextmenu="event.preventDefault(); removeFromSlot(${ci},${ri},'${c.id}')">
                                         <img src="${imgUrl(c)}" alt="${c.name}" title="${c.name}">
                                         <button class="rm-btn"
                                             onclick="removeFromSlot(${ci},${ri},'${c.id}')">×</button>
@@ -876,7 +898,8 @@ function renderMembers() {
                          data-tag="${item.tag || ''}"
                          ondragover="onPoolChampDragOver(event,${mi})"
                          ondragleave="onPoolChampDragLeave(event)"
-                         ondrop="onDropReorder(event,${mi},'${c.id}')">
+                         ondrop="onDropReorder(event,${mi},'${c.id}')"
+                         oncontextmenu="event.preventDefault(); removeFromPool(${mi},'${c.id}')">
                         <img src="${imgUrl(c)}" alt="${c.name}" title="${c.name}">
                         <button class="rm-btn"
                                 onclick="event.stopPropagation(); removeFromPool(${mi},'${c.id}')">×</button>
@@ -887,15 +910,17 @@ function renderMembers() {
         return `
         <div class="member-row">
             <div class="member-meta">
-                <input class="member-name-input" type="text"
-                       value="${escHtml(m.name)}"
-                       placeholder="Player ${mi+1}"
-                       onchange="state.members[${mi}].name = this.value">
-                <select class="role-select" onchange="state.members[${mi}].role = this.value">
-                    ${ROLE_VALS.map((rv, ri) =>
-                        `<option value="${rv}" ${m.role === rv ? 'selected' : ''}>${ROLE_ICONS[ri]} ${ROLES[ri]}</option>`
-                    ).join('')}
-                </select>
+                <div class="member-name-row">
+                    <input class="member-name-input" type="text"
+                           value="${escHtml(m.name)}"
+                           placeholder="Player ${mi+1}"
+                           onchange="state.members[${mi}].name = this.value; scheduleSave()">
+                    <input class="emoji-input" type="text" maxlength="2"
+                           value="${escHtml(m.emoji||'')}"
+                           placeholder="…"
+                           onchange="state.members[${mi}].emoji = this.value; scheduleSave()">
+                </div>
+                <div class="role-label-static">${getRoleDisplay(m.role)}</div>
             </div>
             <div class="member-pool"
                  ondragover="onPoolBgDragOver(event,${mi})"
