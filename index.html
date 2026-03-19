@@ -733,7 +733,17 @@ function renderRoster(list) {
 }
 
 // ─── Render: All Comps ───────────────────────────────────────────────────────
-function getPoolTag(champId) {
+function getPoolTag(champId, ri) {
+    // Prefer the tag from the member whose role matches the slot's role
+    if (ri !== undefined) {
+        const roleVal = ROLE_VALS[ri];
+        const m = state.members.find(m => m.role === roleVal);
+        if (m) {
+            const item = m.pool.find(p => p.id === champId);
+            if (item) return item.tag || '';
+        }
+    }
+    // Fallback: first member who has the champ
     for (const m of state.members) {
         const item = m.pool.find(p => p.id === champId);
         if (item) return item.tag || '';
@@ -777,7 +787,7 @@ function renderAllComps() {
                                     return c ? `
                                     <div class="comp-champ ${isBanned(c.id) ? 'banned' : ''}"
                                          draggable="true"
-                                         data-tag="${getPoolTag(c.id)}"
+                                         data-tag="${getPoolTag(c.id, ri)}"
                                          ondragstart="onCompChampDragStart(event,${ci},${ri},'${c.id}')"
                                          ondragover="onCompChampDragOver(event,${ci},${ri})"
                                          ondragleave="onCompChampDragLeave(event)"
@@ -1258,7 +1268,7 @@ function renderDraftCompsRef() {
                                     const isUnavail = unavailableChamps().has(c.id) || draft.cursor >= 20;
                                     const isStaged  = draftStaged === c.id;
                                     return `<div class="comp-champ ${isStaged ? 'staged-comp' : ''} ${!isUnavail ? 'draft-comp-champ-clickable' : ''}"
-                                                 data-tag="${getPoolTag(c.id)}" title="${c.name}"
+                                                 data-tag="${getPoolTag(c.id, ri)}" title="${c.name}"
                                                  ${!isUnavail ? `onclick="draftStageChamp('${c.id}')" onmouseenter="draftHoverEnter('${c.id}')" onmouseleave="draftHoverLeave()"` : ''}>
                                         <img src="${imgUrl(c)}" alt="${c.name}" ${isUnavail ? 'style="filter:grayscale(100%) brightness(.3);opacity:.4"' : ''}>
                                     </div>`;
