@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoL Team Builder v2</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: #111;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            font-size: 14px;
+        }
+
+        header {
+            background: #000;
+            border-bottom: 1px solid #2a2a2a;
+            padding: 9px 16px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        header h1 {
+            font-size: 14px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: #fff;
+            font-weight: 600;
+        }
+        #saveStatus {
+            font-size: 11px;
+            color: #444;
+            transition: color 0.3s;
+        }
+        #saveStatus.saving  { color: #888; }
+        #saveStatus.saved   { color: #2ecc71; }
+        #saveStatus.error   { color: #e74c3c; }
+
+        /* ── Three-column layout ── */
+        .layout {
+            display: flex;
+            height: calc(100vh - 40px);
+            overflow: hidden;
+        }
+
+        .panel {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 10px;
+            flex: 1;
+            min-width: 160px;
+        }
+
+        /* ── Resize handle ── */
+        .resize-handle {
+            width: 5px;
+            background: #1a1a1a;
+            cursor: col-resize;
+            flex-shrink: 0;
+            transition: background 0.1s;
+            border-left: 1px solid #222;
+            border-right: 1px solid #222;
+        }
+        .resize-handle:hover,
+        .resize-handle.active { background: #444; }
+
+        .panel-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #fff;
+            font-weight: 700;
+            margin-bottom: 8px;
+            flex-shrink: 0;
+        }
+        .panel-hint {
+            font-size: 11px;
+            color: #555;
+            font-weight: 400;
+            letter-spacing: 0;
+            text-transform: none;
+            margin-left: 6px;
+        }
+
+        /* ── Shared inputs ── */
+        input[type=text], select {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            color: #e0e0e0;
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+            border-radius: 2px;
+            padding: 4px 7px;
+        }
+        input[type=text]:focus, select:focus { border-color: #555; }
+        input[type=text]::placeholder { color: #444; }
+
+        /* ── Roster panel ── */
+        .search-box {
+            width: 100%;
+            margin-bottom: 6px;
+            flex-shrink: 0;
+        }
+        .champ-count {
+            font-size: 11px;
+            color: #444;
+            margin-bottom: 6px;
+            flex-shrink: 0;
+        }
+        .champion-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 2px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .champion-grid::-webkit-scrollbar { width: 4px; }
+        .champion-grid::-webkit-scrollbar-track { background: #111; }
+        .champion-grid::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+
+        .roster-champ {
+            position: relative;
+            cursor: grab;
+        }
+        .roster-champ:active { cursor: grabbing; }
+        .roster-champ img {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            display: block;
+            border: 1px solid #222;
+            border-radius: 1px;
+            transition: border-color 0.1s, filter 0.1s;
+        }
+        .roster-champ:hover img {
+            border-color: #888;
+            filter: brightness(1.2);
+        }
+
+        /* ── Pools panel ── */
+        .members-scroll {
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .members-scroll::-webkit-scrollbar { width: 4px; }
+        .members-scroll::-webkit-scrollbar-track { background: #111; }
+        .members-scroll::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+
+        .member-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            border: 1px solid #222;
+            border-radius: 2px;
+            padding: 8px;
+            flex-shrink: 0;
+        }
+        .member-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            width: 110px;
+            flex-shrink: 0;
+        }
+        .member-name-input {
+            width: 100%;
+            font-weight: 700;
+            font-size: 13px;
+            border: none;
+            border-bottom: 1px solid #2a2a2a;
+            background: transparent;
+            border-radius: 0;
+            padding: 2px 0;
+        }
+        .member-name-input:focus { border-bottom-color: #666; }
+        .role-select { width: 100%; font-size: 12px; cursor: pointer; }
+
+        .member-pool {
+            flex: 1;
+            min-height: 54px;
+            border: 1px dashed #2a2a2a;
+            border-radius: 2px;
+            padding: 5px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            align-content: flex-start;
+            transition: border-color 0.1s, background 0.1s;
+        }
+        .member-pool.drag-over { border-color: #fff; background: #1a1a1a; }
+        .pool-empty {
+            color: #333;
+            font-size: 12px;
+            align-self: center;
+            pointer-events: none;
+            user-select: none;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* ── Pool champion ── */
+        .pool-champ {
+            position: relative;
+            cursor: grab;
+            width: 46px;
+        }
+        .pool-champ:active { cursor: grabbing; }
+        .pool-champ img {
+            width: 46px;
+            height: 46px;
+            object-fit: cover;
+            border-radius: 2px;
+            border: 2px solid #2a2a2a;
+            display: block;
+            transition: filter 0.1s;
+        }
+        .pool-champ:hover img { filter: brightness(1.1); }
+
+        /* Tag border colours */
+        .pool-champ[data-tag="best"]         img { border-color: #e74c3c; }
+        .pool-champ[data-tag="great"]        img { border-color: #e67e22; }
+        .pool-champ[data-tag="decent"]       img { border-color: #d4ac0d; }
+        .pool-champ[data-tag="questionable"] img { border-color: #2ecc71; }
+        .pool-champ[data-tag="stretch"]      img { border-color: #3498db; }
+
+        .pool-champ.insert-before { box-shadow: -3px 0 0 #fff; }
+
+        .pool-tag-bar {
+            height: 3px;
+            border-radius: 0 0 2px 2px;
+            background: transparent;
+            margin-top: 1px;
+        }
+        .pool-champ[data-tag="best"]         .pool-tag-bar { background: #e74c3c; }
+        .pool-champ[data-tag="great"]        .pool-tag-bar { background: #e67e22; }
+        .pool-champ[data-tag="decent"]       .pool-tag-bar { background: #d4ac0d; }
+        .pool-champ[data-tag="questionable"] .pool-tag-bar { background: #2ecc71; }
+        .pool-champ[data-tag="stretch"]      .pool-tag-bar { background: #3498db; }
+
+        /* ── Remove button ── */
+        .rm-btn {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 14px;
+            height: 14px;
+            background: #1a1a1a;
+            border: 1px solid #555;
+            border-radius: 50%;
+            color: #ccc;
+            font-size: 9px;
+            line-height: 1;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 30;
+            padding: 0;
+        }
+        .pool-champ:hover .rm-btn,
+        .comp-champ:hover .rm-btn { display: flex; }
+        .rm-btn:hover { background: #c0392b; border-color: #c0392b; color: #fff; }
+
+        /* ── Tag picker popup ── */
+        #tagPicker {
+            position: fixed;
+            z-index: 1000;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 3px;
+            padding: 6px;
+            display: none;
+            gap: 5px;
+            align-items: center;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.7);
+        }
+        #tagPicker.open { display: flex; }
+        .tag-opt {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 1px solid #444;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: transform 0.1s;
+        }
+        .tag-opt:hover { transform: scale(1.3); border-color: #aaa; }
+        .tag-opt-clear {
+            background: #2a2a2a;
+            color: #888;
+            font-size: 11px;
+            line-height: 1;
+        }
+
+        .tag-legend-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            font-size: 11px;
+            color: #444;
+            margin-bottom: 7px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        .tag-legend-item { display: flex; align-items: center; gap: 4px; }
+        .tag-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+        /* ── Comps panel ── */
+        .comps-scroll {
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .comps-scroll::-webkit-scrollbar { width: 4px; }
+        .comps-scroll::-webkit-scrollbar-track { background: #111; }
+        .comps-scroll::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+
+        .comp-block {
+            border: 1px solid #222;
+            border-radius: 2px;
+            padding: 8px;
+            flex-shrink: 0;
+        }
+        .comp-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+        .comp-name-input {
+            flex: 1;
+            font-weight: 700;
+            font-size: 13px;
+            border: none;
+            border-bottom: 1px solid #2a2a2a;
+            background: transparent;
+            border-radius: 0;
+            padding: 2px 0;
+        }
+        .comp-name-input:focus { border-bottom-color: #666; }
+        .comp-del-btn {
+            background: none;
+            border: none;
+            color: #444;
+            font-size: 16px;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0 2px;
+        }
+        .comp-del-btn:hover { color: #c0392b; }
+
+        .comp-slots {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 3px;
+        }
+        .role-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+        .role-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #555;
+        }
+        .role-drop-zone {
+            width: 100%;
+            min-height: 48px;
+            border: 1px dashed #2a2a2a;
+            border-radius: 2px;
+            padding: 3px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px;
+            justify-content: center;
+            align-content: flex-start;
+            background: #0d0d0d;
+            transition: border-color 0.1s, background 0.1s;
+        }
+        .role-drop-zone.drag-over { border-color: #fff; background: #1a1a1a; }
+        .role-drop-zone.has-champs { border-style: solid; border-color: #222; }
+        .slot-placeholder {
+            font-size: 14px;
+            color: #2a2a2a;
+            pointer-events: none;
+            user-select: none;
+            align-self: center;
+        }
+        .comp-champ {
+            position: relative;
+            width: 40px;
+        }
+        .comp-champ img {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            border-radius: 2px;
+            border: 1px solid #2a2a2a;
+            display: block;
+        }
+        .comp-champ .champ-lbl {
+            font-size: 9px;
+            color: #555;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 40px;
+        }
+
+        .add-comp-btn {
+            margin-top: 6px;
+            padding: 7px 0;
+            background: transparent;
+            border: 1px dashed #2a2a2a;
+            border-radius: 2px;
+            color: #444;
+            font-size: 12px;
+            cursor: pointer;
+            width: 100%;
+            transition: border-color 0.1s, color 0.1s;
+            flex-shrink: 0;
+        }
+        .add-comp-btn:hover { border-color: #888; color: #e0e0e0; }
+
+        /* ── Tooltip ── */
+        .tip {
+            position: absolute;
+            bottom: calc(100% + 3px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: #000;
+            border: 1px solid #333;
+            color: #e0e0e0;
+            font-size: 11px;
+            padding: 2px 7px;
+            border-radius: 2px;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.1s;
+            z-index: 999;
+        }
+        .roster-champ:hover .tip { opacity: 1; }
+
+        /* ── Loading ── */
+        .loading-msg {
+            grid-column: 1 / -1;
+            text-align: center;
+            color: #333;
+            font-size: 12px;
+            padding: 20px 0;
+        }
+        .spinner {
+            display: inline-block;
+            width: 11px; height: 11px;
+            border: 2px solid #222;
+            border-top-color: #888;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>LoL Team Builder <span style="color:#444;font-weight:400">v2</span></h1>
+    <span id="saveStatus">—</span>
+</header>
+
+<div class="layout" id="layout">
+
+    <!-- LEFT: Champion Roster -->
+    <div class="panel" id="panelRoster">
+        <div class="panel-title">Champions</div>
+        <input type="text" class="search-box" id="searchBox" placeholder="Search…">
+        <div class="champ-count" id="champCount"></div>
+        <div class="champion-grid" id="championGrid">
+            <div class="loading-msg"><span class="spinner"></span>Loading…</div>
+        </div>
+    </div>
+
+    <div class="resize-handle" id="handle1"></div>
+
+    <!-- MIDDLE: Champion Pools -->
+    <div class="panel" id="panelPools">
+        <div class="panel-title">
+            Champion Pools
+            <span class="panel-hint">click icon to tag · drag to comp</span>
+        </div>
+        <div class="tag-legend-row">
+            <span style="color:#555">Tag:</span>
+            <span class="tag-legend-item"><span class="tag-dot" style="background:#e74c3c"></span>Best</span>
+            <span class="tag-legend-item"><span class="tag-dot" style="background:#e67e22"></span>Great</span>
+            <span class="tag-legend-item"><span class="tag-dot" style="background:#d4ac0d"></span>Decent</span>
+            <span class="tag-legend-item"><span class="tag-dot" style="background:#2ecc71"></span>Questionable</span>
+            <span class="tag-legend-item"><span class="tag-dot" style="background:#3498db"></span>Stretch</span>
+        </div>
+        <div class="members-scroll" id="membersContainer"></div>
+    </div>
+
+    <div class="resize-handle" id="handle2"></div>
+
+    <!-- RIGHT: Team Comps -->
+    <div class="panel" id="panelComps">
+        <div class="panel-title">Team Comps</div>
+        <div class="comps-scroll" id="compsContainer"></div>
+        <button class="add-comp-btn" onclick="addComp()">+ Add Comp</button>
+    </div>
+
+</div>
+
+<!-- Floating tag picker -->
+<div id="tagPicker">
+    <button class="tag-opt tag-opt-clear" onclick="setTag('')"             title="Clear">✕</button>
+    <button class="tag-opt" style="background:#e74c3c" onclick="setTag('best')"         title="Best"></button>
+    <button class="tag-opt" style="background:#e67e22" onclick="setTag('great')"        title="Great"></button>
+    <button class="tag-opt" style="background:#d4ac0d" onclick="setTag('decent')"       title="Decent"></button>
+    <button class="tag-opt" style="background:#2ecc71" onclick="setTag('questionable')" title="Questionable"></button>
+    <button class="tag-opt" style="background:#3498db" onclick="setTag('stretch')"      title="Stretch"></button>
+</div>
+
+<script>
+// ─── JSONBin Config ───────────────────────────────────────────────────────────
+const BIN_ID  = '69bc35c5b7ec241ddc8333b3';
+const API_KEY = '$2a$10$KPkEwnFhZt/VHWG6uBlmt.CtPqLvNK7wu0fJSysRbx8zHBXS5.zhm';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const ROLES      = ['Top', 'Jungle', 'Mid', 'Bot', 'Support'];
+const ROLE_ICONS = ['⚔', '🌿', '✨', '💰', '🛡'];
+const ROLE_VALS  = ['top', 'jungle', 'mid', 'bot', 'support'];
+const TAG_ORDER  = { 'best': 0, 'great': 1, 'decent': 2, 'questionable': 3, 'stretch': 4, '': 5 };
+
+function sortedPool(pool) {
+    return [...pool].sort((a, b) => (TAG_ORDER[a.tag||''] ?? 5) - (TAG_ORDER[b.tag||''] ?? 5));
+}
+
+// ─── State ────────────────────────────────────────────────────────────────────
+const state = {
+    version: null,
+    champions: [],
+    comps: [
+        { name: 'Comp 1', slots: [[], [], [], [], []] }
+    ],
+    members: [
+        { name: 'PUSH',          role: 'top',     pool: [] },
+        { name: 'GENISYS',       role: 'jungle',  pool: [] },
+        { name: 'CLUGMA',        role: 'mid',     pool: [] },
+        { name: 'LONGRARESOUND', role: 'bot',     pool: [] },
+        { name: 'IMP',           role: 'support', pool: [] },
+        { name: 'JART',          role: 'top',     pool: [] },
+    ]
+    // pool items: { id: string, tag: string }
+};
+
+let dragData = null;
+let tagPickerTarget = null;
+let saveTimer = null;
+
+// ─── JSONBin: Load & Save ─────────────────────────────────────────────────────
+async function loadFromBin() {
+    if (BIN_ID === 'PASTE_BIN_ID_HERE') return; // not configured yet
+    try {
+        setStatus('saving', 'Loading…');
+        const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+            headers: { 'X-Master-Key': API_KEY }
+        });
+        if (!res.ok) throw new Error(res.status);
+        const { record } = await res.json();
+        if (record.members && record.members.length) state.members = record.members;
+        if (record.comps   && record.comps.length)   state.comps   = record.comps;
+        setStatus('saved', 'Loaded');
+    } catch (e) {
+        setStatus('error', 'Load failed');
+    }
+}
+
+function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveToBin, 1500);
+}
+
+async function saveToBin() {
+    if (BIN_ID === 'PASTE_BIN_ID_HERE') return;
+    try {
+        setStatus('saving', 'Saving…');
+        const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+            method:  'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
+            body:    JSON.stringify({
+                members: state.members.map(m => ({ ...m, pool: sortedPool(m.pool) })),
+                comps: state.comps
+            })
+        });
+        if (!res.ok) throw new Error(res.status);
+        setStatus('saved', 'Saved');
+    } catch (e) {
+        setStatus('error', 'Save failed');
+    }
+}
+
+function setStatus(cls, text) {
+    const el = document.getElementById('saveStatus');
+    el.className = cls;
+    el.textContent = text;
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+async function init() {
+    initResizeHandles();
+    // Load bin data and champion list in parallel, render once both are ready
+    await Promise.all([loadFromBin(), loadChampions()]);
+    renderRoster(state.champions);
+    renderAllComps();
+    renderMembers();
+}
+
+// ─── Resize Handles ───────────────────────────────────────────────────────────
+function initResizeHandles() {
+    document.querySelectorAll('.resize-handle').forEach(handle => {
+        let startX, prevPanel, nextPanel, prevW, nextW;
+
+        handle.addEventListener('mousedown', e => {
+            e.preventDefault();
+            startX     = e.clientX;
+            prevPanel  = handle.previousElementSibling;
+            nextPanel  = handle.nextElementSibling;
+            prevW      = prevPanel.getBoundingClientRect().width;
+            nextW      = nextPanel.getBoundingClientRect().width;
+            handle.classList.add('active');
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor     = 'col-resize';
+        });
+
+        document.addEventListener('mousemove', e => {
+            if (!handle.classList.contains('active')) return;
+            const dx      = e.clientX - startX;
+            const total   = prevW + nextW;
+            const minW    = 160;
+            const newPrev = Math.max(minW, Math.min(total - minW, prevW + dx));
+            const newNext = total - newPrev;
+            prevPanel.style.flex  = 'none';
+            prevPanel.style.width = newPrev + 'px';
+            nextPanel.style.flex  = 'none';
+            nextPanel.style.width = newNext + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (handle.classList.contains('active')) {
+                handle.classList.remove('active');
+                document.body.style.userSelect = '';
+                document.body.style.cursor     = '';
+            }
+        });
+    });
+}
+
+// ─── Data Dragon ─────────────────────────────────────────────────────────────
+async function loadChampions() {
+    try {
+        const verRes = await fetch('https://ddragon.leagueoflegends.com/api/versions.json');
+        state.version = (await verRes.json())[0];
+
+        const champRes = await fetch(
+            `https://ddragon.leagueoflegends.com/cdn/${state.version}/data/en_US/champion.json`
+        );
+        state.champions = Object.values((await champRes.json()).data)
+            .map(c => ({ id: c.id, name: c.name, image: c.image.full }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+    } catch {
+        document.getElementById('championGrid').innerHTML =
+            '<div class="loading-msg">Failed to load. Check connection.</div>';
+    }
+}
+
+function imgUrl(c) {
+    return `https://ddragon.leagueoflegends.com/cdn/${state.version}/img/champion/${c.image}`;
+}
+function getChamp(id) { return state.champions.find(c => c.id === id); }
+
+// ─── Render: Roster ───────────────────────────────────────────────────────────
+function renderRoster(list) {
+    const grid = document.getElementById('championGrid');
+    document.getElementById('champCount').textContent =
+        `${list.length} champion${list.length !== 1 ? 's' : ''}`;
+
+    if (!list.length) {
+        grid.innerHTML = '<div class="loading-msg">No results</div>';
+        return;
+    }
+    grid.innerHTML = list.map(c => `
+        <div class="roster-champ" draggable="true" data-id="${c.id}" data-source="roster">
+            <img src="${imgUrl(c)}" alt="${c.name}" loading="lazy">
+            <div class="tip">${c.name}</div>
+        </div>
+    `).join('');
+    grid.querySelectorAll('.roster-champ').forEach(el =>
+        el.addEventListener('dragstart', onDragStart));
+}
+
+// ─── Render: All Comps ────────────────────────────────────────────────────────
+function renderAllComps() {
+    const container = document.getElementById('compsContainer');
+    container.innerHTML = state.comps.map((comp, ci) => `
+        <div class="comp-block">
+            <div class="comp-header">
+                <input class="comp-name-input" type="text"
+                       value="${escHtml(comp.name)}"
+                       onchange="state.comps[${ci}].name = this.value">
+                ${state.comps.length > 1
+                    ? `<button class="comp-del-btn" onclick="deleteComp(${ci})" title="Delete">×</button>`
+                    : ''}
+            </div>
+            <div class="comp-slots">
+                ${ROLES.map((role, ri) => {
+                    const ids = comp.slots[ri];
+                    return `
+                    <div class="role-col">
+                        <div class="role-label">${ROLE_ICONS[ri]} ${role}</div>
+                        <div class="role-drop-zone ${ids.length ? 'has-champs' : ''}"
+                             ondragover="onDragOver(event)"
+                             ondragleave="onDragLeave(event)"
+                             ondrop="onDropComp(event,${ci},${ri})">
+                            ${ids.length
+                                ? ids.map(cid => {
+                                    const c = getChamp(cid);
+                                    return c ? `
+                                    <div class="comp-champ">
+                                        <img src="${imgUrl(c)}" alt="${c.name}" title="${c.name}">
+                                        <button class="rm-btn"
+                                            onclick="removeFromSlot(${ci},${ri},'${c.id}')">×</button>
+                                        <div class="champ-lbl">${c.name}</div>
+                                    </div>` : '';
+                                }).join('')
+                                : '<span class="slot-placeholder">+</span>'}
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+// ─── Render: Members ──────────────────────────────────────────────────────────
+function renderMembers() {
+    const container = document.getElementById('membersContainer');
+    container.innerHTML = state.members.map((m, mi) => {
+        const display = sortedPool(m.pool);
+        const poolHtml = display.length === 0
+            ? '<div class="pool-empty">Drop champions here</div>'
+            : display.map(item => {
+                const c = getChamp(item.id);
+                return c ? `
+                    <div class="pool-champ" draggable="true"
+                         data-id="${c.id}" data-source="pool" data-member="${mi}"
+                         data-tag="${item.tag || ''}"
+                         ondragover="onPoolChampDragOver(event,${mi})"
+                         ondragleave="onPoolChampDragLeave(event)"
+                         ondrop="onDropReorder(event,${mi},'${c.id}')">
+                        <img src="${imgUrl(c)}" alt="${c.name}" title="${c.name}">
+                        <button class="rm-btn"
+                                onclick="event.stopPropagation(); removeFromPool(${mi},'${c.id}')">×</button>
+                        <div class="pool-tag-bar"></div>
+                    </div>` : '';
+            }).join('');
+
+        return `
+        <div class="member-row">
+            <div class="member-meta">
+                <input class="member-name-input" type="text"
+                       value="${escHtml(m.name)}"
+                       placeholder="Player ${mi+1}"
+                       onchange="state.members[${mi}].name = this.value">
+                <select class="role-select"
+                        onchange="state.members[${mi}].role = this.value">
+                    ${ROLE_VALS.map((rv, ri) =>
+                        `<option value="${rv}" ${m.role === rv ? 'selected' : ''}>${ROLE_ICONS[ri]} ${ROLES[ri]}</option>`
+                    ).join('')}
+                </select>
+            </div>
+            <div class="member-pool"
+                 ondragover="onPoolBgDragOver(event,${mi})"
+                 ondragleave="onDragLeave(event)"
+                 ondrop="onDropPool(event,${mi})">
+                ${poolHtml}
+            </div>
+        </div>`;
+    }).join('');
+
+    container.querySelectorAll('.pool-champ').forEach(el => {
+        el.addEventListener('dragstart', onDragStart);
+        el.addEventListener('click', function(e) {
+            if (e.target.classList.contains('rm-btn')) return;
+            openTagPicker(e, +this.dataset.member, this.dataset.id);
+        });
+    });
+}
+
+// ─── Tag Picker ───────────────────────────────────────────────────────────────
+function openTagPicker(e, memberIdx, champId) {
+    e.stopPropagation();
+    const rect   = e.currentTarget.getBoundingClientRect();
+    const picker = document.getElementById('tagPicker');
+    picker.style.left = rect.left + 'px';
+    picker.style.top  = (rect.bottom + 5) + 'px';
+    picker.classList.add('open');
+    tagPickerTarget = { memberIdx, champId };
+}
+
+function setTag(tag) {
+    if (!tagPickerTarget) return;
+    const item = state.members[tagPickerTarget.memberIdx].pool
+        .find(p => p.id === tagPickerTarget.champId);
+    if (item) { item.tag = tag; renderMembers(); scheduleSave(); }
+    closeTagPicker();
+}
+
+function closeTagPicker() {
+    document.getElementById('tagPicker').classList.remove('open');
+    tagPickerTarget = null;
+}
+
+document.addEventListener('click', e => {
+    if (!e.target.closest('#tagPicker')) closeTagPicker();
+});
+
+// ─── Comp Management ─────────────────────────────────────────────────────────
+function addComp() {
+    state.comps.push({ name: `Comp ${state.comps.length + 1}`, slots: [[], [], [], [], []] });
+    renderAllComps();
+    scheduleSave();
+}
+
+function deleteComp(idx) {
+    if (state.comps.length === 1) return;
+    state.comps.splice(idx, 1);
+    renderAllComps();
+    scheduleSave();
+}
+
+// ─── Drag & Drop ─────────────────────────────────────────────────────────────
+function onDragStart(e) {
+    closeTagPicker();
+    const el = e.currentTarget;
+    dragData = {
+        champId:   el.dataset.id,
+        source:    el.dataset.source,
+        memberIdx: el.dataset.member != null ? +el.dataset.member : null,
+    };
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData('text/plain', el.dataset.id);
+}
+
+function onDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    e.currentTarget.classList.add('drag-over');
+}
+
+// Pool background — don't highlight when reordering within same pool
+function onPoolBgDragOver(e, memberIdx) {
+    if (dragData?.source === 'pool' && dragData?.memberIdx === memberIdx) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    e.currentTarget.classList.add('drag-over');
+}
+
+function onDragLeave(e) {
+    e.currentTarget.classList.remove('drag-over');
+}
+
+// Drag over a specific pool champ — show insert indicator for same-pool reorder
+function onPoolChampDragOver(e, memberIdx) {
+    if (!dragData || dragData.source !== 'pool' || dragData.memberIdx !== memberIdx) return;
+    e.preventDefault();
+    e.stopPropagation(); // don't let pool background also activate
+    e.currentTarget.classList.add('insert-before');
+}
+
+function onPoolChampDragLeave(e) {
+    e.currentTarget.classList.remove('insert-before');
+}
+
+// Drop on a pool champ: reorder (same member) or add (different source)
+function onDropReorder(e, memberIdx, targetId) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.classList.remove('insert-before');
+    if (!dragData) return;
+
+    if (dragData.source !== 'pool' || dragData.memberIdx !== memberIdx) {
+        // Different source — just add to this pool
+        const pool = state.members[memberIdx].pool;
+        if (!pool.find(p => p.id === dragData.champId)) {
+            pool.push({ id: dragData.champId, tag: '' });
+            renderMembers();
+            scheduleSave();
+        }
+        dragData = null;
+        return;
+    }
+
+    // Same-pool reorder
+    if (dragData.champId === targetId) { dragData = null; return; }
+    const m = state.members[memberIdx];
+    const sorted = sortedPool(m.pool);
+    const fromIdx = sorted.findIndex(p => p.id === dragData.champId);
+    const toIdx   = sorted.findIndex(p => p.id === targetId);
+    if (fromIdx === -1 || toIdx === -1) { dragData = null; return; }
+    const [moved] = sorted.splice(fromIdx, 1);
+    sorted.splice(toIdx, 0, moved);
+    m.pool = sorted;
+    renderMembers();
+    scheduleSave();
+    dragData = null;
+}
+
+function onDropPool(e, memberIdx) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    if (!dragData) return;
+    // Same-member reorder landed on background — no-op
+    if (dragData.source === 'pool' && dragData.memberIdx === memberIdx) { dragData = null; return; }
+    const pool = state.members[memberIdx].pool;
+    if (!pool.find(p => p.id === dragData.champId)) {
+        pool.push({ id: dragData.champId, tag: '' });
+        renderMembers();
+        scheduleSave();
+    }
+    dragData = null;
+}
+
+function onDropComp(e, compIdx, roleIdx) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    if (!dragData) return;
+    const slot = state.comps[compIdx].slots[roleIdx];
+    if (!slot.includes(dragData.champId)) {
+        slot.push(dragData.champId);
+        renderAllComps();
+        scheduleSave();
+    }
+    dragData = null;
+}
+
+// ─── Remove ──────────────────────────────────────────────────────────────────
+function removeFromSlot(compIdx, roleIdx, champId) {
+    const slots = state.comps[compIdx].slots;
+    slots[roleIdx] = slots[roleIdx].filter(id => id !== champId);
+    renderAllComps();
+    scheduleSave();
+}
+
+function removeFromPool(memberIdx, champId) {
+    state.members[memberIdx].pool =
+        state.members[memberIdx].pool.filter(p => p.id !== champId);
+    renderMembers();
+    scheduleSave();
+}
+
+// ─── Save on name/role edits (delegated) ─────────────────────────────────────
+document.getElementById('membersContainer').addEventListener('change', scheduleSave);
+document.getElementById('compsContainer').addEventListener('change', scheduleSave);
+
+// ─── Search ──────────────────────────────────────────────────────────────────
+document.getElementById('searchBox').addEventListener('input', function () {
+    const q = this.value.trim().toLowerCase();
+    renderRoster(q ? state.champions.filter(c => c.name.toLowerCase().includes(q)) : state.champions);
+});
+
+// ─── Util ─────────────────────────────────────────────────────────────────────
+function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+init();
+</script>
+</body>
+</html>
