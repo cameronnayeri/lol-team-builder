@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LoL Team Builder v3</title>
+    <title>Men Who Joust v5</title>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
     <style>
@@ -135,6 +135,10 @@
         .comp-drag-handle:hover { color:#666; }
         .comp-drag-handle:active { cursor:grabbing; }
         .comp-block.comp-drag-over { border-color:#555; background:#1a1a1a; }
+        .comp-block.draft-collapsed .comp-slots,
+        .comp-block.draft-collapsed .threats-toggle,
+        .comp-block.draft-collapsed .threats-drop { display:none; }
+        .comp-block.draft-collapsed { padding-bottom:4px; }
         .comp-collapse-btn { background:none; border:none; color:#444; font-size:10px; cursor:pointer; padding:0 4px; line-height:1; flex-shrink:0; transition:color .1s; }
         .comp-collapse-btn:hover { color:#aaa; }
         .comp-slots { display:grid; grid-template-columns:repeat(5,1fr); gap:3px; }
@@ -185,6 +189,11 @@
         /* Draft left: pools (read-only reference) */
         .draft-pools-panel { display:flex; flex-direction:column; overflow:hidden; padding:10px; width:260px; min-width:180px; flex-shrink:0; border-right:1px solid #1e1e1e; }
         .draft-member-row { display:flex; align-items:flex-start; gap:6px; border:1px solid #1e1e1e; border-radius:2px; padding:6px; flex-shrink:0; margin-bottom:5px; }
+        .draft-member-row.pool-collapsed .draft-member-pool,
+        .draft-member-row.pool-collapsed .threats-toggle,
+        .draft-member-row.pool-collapsed .threats-drop { display:none; }
+        .draft-item-toggle { background:none; border:none; color:#444; font-size:9px; cursor:pointer; padding:0 2px; line-height:1; flex-shrink:0; }
+        .draft-item-toggle:hover { color:#aaa; }
         .draft-member-name { font-size:11px; font-weight:700; color:#aaa; width:80px; flex-shrink:0; padding-top:2px; }
         .draft-member-pool { display:flex; flex-wrap:wrap; gap:3px; }
         .draft-pool-champ { position:relative; width:36px; }
@@ -225,7 +234,15 @@
         /* Fearless banner */
         .fearless-row { padding:6px 12px; border-bottom:1px solid #1e1e1e; background:#0d0d0d; display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap; min-height:36px; }
         .fearless-label { font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:#555; font-weight:700; flex-shrink:0; }
-        .fearless-champ { width:26px; height:26px; border-radius:2px; object-fit:cover; filter:grayscale(100%) brightness(.4); opacity:.6; border:1px solid #333; }
+        .fearless-champ { width:26px; height:26px; border-radius:2px; object-fit:cover; filter:grayscale(100%) brightness(.4); opacity:.6; border:1px solid #333; cursor:pointer; transition:filter .1s,opacity .1s,outline .1s; }
+        .fearless-champ:hover { filter:grayscale(0%) brightness(1); opacity:1; outline:2px solid #c89b3c; outline-offset:1px; }
+        #fearlessReplaceModal { position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:2000; display:flex; align-items:center; justify-content:center; }
+        .fearless-replace-box { background:#111; border:1px solid #333; border-radius:4px; padding:12px; width:380px; max-height:500px; display:flex; flex-direction:column; gap:8px; }
+        .fearless-replace-box input { width:100%; box-sizing:border-box; padding:6px 8px; background:#1a1a1a; border:1px solid #333; color:#e0e0e0; border-radius:2px; font-size:13px; }
+        .fearless-replace-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(42px,1fr)); grid-auto-rows:max-content; gap:2px; overflow-y:auto; flex:1; align-items:start; }
+        .fearless-replace-champ { cursor:pointer; border-radius:2px; }
+        .fearless-replace-champ img { width:100%; aspect-ratio:1; object-fit:cover; display:block; border:1px solid #222; border-radius:2px; }
+        .fearless-replace-champ:hover img { border-color:#c89b3c; filter:brightness(1.2); }
 
         /* Draft board */
         .draft-board { display:flex; gap:0; padding:10px 12px; flex-shrink:0; background:#0d0d0d; border-bottom:1px solid #1e1e1e; }
@@ -316,7 +333,7 @@
 <body>
 
 <header>
-    <h1>LoL Team Builder <span style="color:#444;font-weight:400">v3</span></h1>
+    <h1>Men Who Joust <span style="color:#444;font-weight:400">v5</span></h1>
     <div class="tab-bar">
         <button class="tab-btn active" onclick="switchTab('builder')">Builder</button>
         <button class="tab-btn" onclick="switchTab('draft')">Draft</button>
@@ -459,6 +476,18 @@
     </svg>
 </div>
 
+<!-- Fearless replace modal (hidden) -->
+<div id="fearlessReplaceModal" style="display:none" onclick="if(event.target===this)closeFearlessReplace()">
+    <div class="fearless-replace-box">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+            <span style="font-size:10px;color:#888;letter-spacing:1px;text-transform:uppercase">Replace Fearless Champion</span>
+            <button class="draft-btn" onclick="closeFearlessReplace()">✕</button>
+        </div>
+        <input type="text" id="fearlessReplaceSearch" placeholder="Search champion…" oninput="renderFearlessReplace()">
+        <div class="fearless-replace-grid" id="fearlessReplaceGrid"></div>
+    </div>
+</div>
+
 <!-- Winner modal (hidden) -->
 <div class="winner-overlay" id="winnerOverlay" style="display:none">
     <div class="winner-modal">
@@ -577,10 +606,11 @@ let mapPlacements = []; // [{ uid, champId, x, y }] — allows duplicates
 let mapIconSize   = 36; // px — changed by scroll wheel on canvas
 let mapDrag = null;     // { uid, ghost } for repositioning existing tokens
 let compBadgeTarget   = null; // {ci, ri, champId} for comp badge picker
-let compDragSrc       = null; // index of comp being reordered
-const collapsedComps  = new Set(); // indices of collapsed comp blocks
-const openThreats     = new Set(); // indices of comps with threats open
-const openPoolThreats = new Set(); // indices of members with threats open
+let compDragSrc        = null; // index of comp being reordered
+const collapsedComps   = new Set(); // indices of collapsed comp blocks in draft
+const collapsedPools   = new Set(); // indices of collapsed pool rows in draft
+const openThreats      = new Set(); // indices of comps with threats open
+const openPoolThreats  = new Set(); // indices of members with threats open
 
 // ─── Apply Firebase data ──────────────────────────────────────────────────────
 function applyRecord(data) {
@@ -607,6 +637,7 @@ function applyRecord(data) {
         draft.slots       = d.slots       ?? Array(20).fill(null);
         draft.cursor      = d.cursor      ?? 0;
     }
+    if (!mapDrag) mapPlacements = data.mapPlacements ?? [];
 }
 
 // ─── Firebase: Listener ──────────────────────────────────────────────────────
@@ -665,6 +696,7 @@ async function saveToDB() {
                 slots:       draft.slots,
                 cursor:      draft.cursor,
             },
+            mapPlacements: mapPlacements,
         };
         lastSavedJSON = JSON.stringify(payload);
         await DOC.set(payload);
@@ -1066,6 +1098,8 @@ function draftStageChamp(champId) {
     if (unavail.has(champId)) return;
     draftStaged = champId;
     draftHoverPreview = null;
+    const searchEl = document.getElementById('draftSearch');
+    if (searchEl) searchEl.value = '';
     // Single-click mode: commit immediately
     if (!lockInMode) { draftLockIn(); return; }
     // Clear search
@@ -1117,7 +1151,7 @@ function renderMapCanvas() {
         token.addEventListener('wheel', e => {
             e.preventDefault(); e.stopPropagation();
             const pl = mapPlacements.find(m => m.uid == p.uid);
-            if (pl) { pl.size = Math.max(20, Math.min(72, (pl.size || mapIconSize) - Math.sign(e.deltaY) * 4)); renderMapCanvas(); }
+            if (pl) { pl.size = Math.max(20, Math.min(72, (pl.size || mapIconSize) - Math.sign(e.deltaY) * 4)); renderMapCanvas(); scheduleSave(); }
         }, { passive: false });
         canvas.appendChild(token);
     });
@@ -1148,6 +1182,7 @@ function mapCanvasDrop(e) {
     mapPlacements.push({ uid: Date.now() + '_' + Math.random(), champId, x, y, size: mapIconSize });
     renderMapCanvas();
     updateMapGlows();
+    scheduleSave();
 }
 
 // Reposition existing token by pointer drag
@@ -1195,12 +1230,14 @@ function onMapTokenUp(e) {
     }
     renderMapCanvas();
     updateMapGlows();
+    scheduleSave();
 }
 
 function removeMapToken(uid) {
     mapPlacements = mapPlacements.filter(p => p.uid != uid);
     renderMapCanvas();
     updateMapGlows();
+    scheduleSave();
 }
 
 
@@ -1216,6 +1253,48 @@ function toggleLockInMode() {
     renderDraftStatus();
     renderDraftPicker();
     renderDraftBoard();
+}
+
+// Skip Ban — advance cursor without placing a champion
+function draftSkipBan() {
+    if (!draft.active || draft.cursor >= 20) return;
+    if (DRAFT_SEQ[draft.cursor].a !== 'ban') return;
+    draftStaged = null;
+    draftHoverPreview = null;
+    draft.cursor++;
+    scheduleSave();
+    renderDraftTab();
+}
+
+// Fearless replace
+let fearlessReplaceTarget = null;
+function openFearlessReplace(champId) {
+    fearlessReplaceTarget = champId;
+    document.getElementById('fearlessReplaceSearch').value = '';
+    document.getElementById('fearlessReplaceModal').style.display = 'flex';
+    renderFearlessReplace();
+}
+function closeFearlessReplace() {
+    fearlessReplaceTarget = null;
+    document.getElementById('fearlessReplaceModal').style.display = 'none';
+}
+function renderFearlessReplace() {
+    const q = (document.getElementById('fearlessReplaceSearch')?.value || '').trim().toLowerCase();
+    let list = state.champions;
+    if (q) list = list.filter(c => c.name.toLowerCase().includes(q));
+    document.getElementById('fearlessReplaceGrid').innerHTML = list.map(c =>
+        `<div class="fearless-replace-champ" onclick="replaceFearlessChamp('${c.id}')" title="${c.name}">
+            <img src="${imgUrl(c)}" alt="${c.name}" loading="lazy">
+        </div>`
+    ).join('');
+}
+function replaceFearlessChamp(newId) {
+    if (!fearlessReplaceTarget) return;
+    const idx = draft.fearless.indexOf(fearlessReplaceTarget);
+    if (idx !== -1) draft.fearless[idx] = newId;
+    closeFearlessReplace();
+    scheduleSave();
+    renderDraftTab();
 }
 
 // Lock In — commit the staged champion to the current draft slot
@@ -1321,7 +1400,7 @@ function renderDraftTab() {
     } else {
         fearlessEl.innerHTML = draft.fearless.map(id => {
             const c = getChamp(id);
-            return c ? `<img class="fearless-champ" src="${imgUrl(c)}" title="${c.name}">` : '';
+            return c ? `<img class="fearless-champ" src="${imgUrl(c)}" title="${c.name} (click to replace)" onclick="openFearlessReplace('${id}')">` : '';
         }).join('');
     }
 
@@ -1460,9 +1539,10 @@ function renderDraftStatus() {
     const team       = (step.t === 'blue') === isHomeBlue ? 'HOME' : 'AWAY';
     const color      = step.t === 'blue' ? '#4e9eff' : '#ff5555';
     const action     = step.a === 'ban' ? 'banning' : 'picking';
+    const skipBanBtn = step.a === 'ban' ? `<button class="draft-btn" style="margin-left:6px" onclick="draftSkipBan()">Skip Ban</button>` : '';
     document.getElementById('draftTurnLabel').innerHTML =
         `<span style="color:${color};font-weight:700">${team}</span> is ${action}
-         <button class="draft-btn" style="margin-left:10px" onclick="draftUndo()">↩ Undo</button>`;
+         <button class="draft-btn" style="margin-left:10px" onclick="draftUndo()">↩ Undo</button>${skipBanBtn}`;
 }
 
 function renderDraftPicker() {
@@ -1497,6 +1577,7 @@ function renderDraftPools() {
 
     container.innerHTML = state.members.map((m, mi) => {
         const display = sortedPool(m.pool);
+        const isCollapsed = collapsedPools.has(mi);
         if (!display.length) return `
             <div class="draft-member-row">
                 <div class="draft-member-name">${escHtml(m.name)}<br>
@@ -1505,8 +1586,12 @@ function renderDraftPools() {
                 <div style="color:#2a2a2a;font-size:11px">No pool</div>
             </div>`;
         return `
-            <div class="draft-member-row">
-                <div class="draft-member-name">${escHtml(m.name)}<br>
+            <div class="draft-member-row ${isCollapsed ? 'pool-collapsed' : ''}">
+                <div class="draft-member-name" style="display:flex;flex-direction:column;gap:2px">
+                    <div style="display:flex;align-items:center;gap:3px">
+                        <button class="draft-item-toggle" onclick="toggleDraftPool(${mi})">${isCollapsed ? '▶' : '▼'}</button>
+                        ${escHtml(m.name)}
+                    </div>
                     <span style="font-size:10px;color:#444">${getRoleDisplay(m.role)}</span>
                 </div>
                 <div style="flex:1;display:flex;flex-direction:column;gap:0;">
@@ -1551,8 +1636,9 @@ function renderDraftCompsRef() {
     const container = document.getElementById('draftCompsContainer');
     if (!container) return;
     container.innerHTML = state.comps.map((comp, ci) => `
-        <div class="comp-block">
+        <div class="comp-block ${collapsedComps.has(ci) ? 'draft-collapsed' : ''}">
             <div class="comp-header">
+                <button class="draft-item-toggle" onclick="toggleDraftComp(${ci})">${collapsedComps.has(ci) ? '▶' : '▼'}</button>
                 <span style="font-weight:700;font-size:12px;color:#aaa">${escHtml(comp.name)}</span>
             </div>
             <div class="comp-slots">
@@ -1870,6 +1956,16 @@ function toggleCoreRole(ci, ri) {
     scheduleSave();
 }
 
+function toggleDraftComp(ci) {
+    if (collapsedComps.has(ci)) collapsedComps.delete(ci);
+    else collapsedComps.add(ci);
+    renderDraftCompsRef();
+}
+function toggleDraftPool(mi) {
+    if (collapsedPools.has(mi)) collapsedPools.delete(mi);
+    else collapsedPools.add(mi);
+    renderDraftPools();
+}
 function toggleThreats(ci) {
     if (openThreats.has(ci)) openThreats.delete(ci);
     else openThreats.add(ci);
