@@ -74,7 +74,7 @@
         .member-name-input:focus { border-bottom-color:#666; }
         .member-name-row { display:flex; align-items:center; gap:4px; width:100%; }
         .role-label-static { font-size:12px; color:#555; padding:2px 0; }
-        .member-pool { flex:1; min-height:54px; border:1px dashed #2a2a2a; border-radius:2px; padding:5px; display:flex; flex-wrap:wrap; gap:4px; align-content:flex-start; transition:border-color .1s,background .1s; }
+        .member-pool { min-height:54px; border:1px dashed #2a2a2a; border-radius:2px; padding:5px; display:flex; flex-wrap:wrap; gap:4px; align-content:flex-start; transition:border-color .1s,background .1s; }
         .member-pool.drag-over { border-color:#fff; background:#1a1a1a; }
         .pool-empty { color:#333; font-size:12px; align-self:center; pointer-events:none; user-select:none; width:100%; text-align:center; }
 
@@ -268,7 +268,7 @@
         .draft-action-btns { display:flex; gap:8px; }
 
         /* Draft champion picker */
-        .draft-picker { flex:1; display:flex; flex-direction:column; overflow:hidden; padding:8px 12px; }
+        .draft-picker { flex:1; display:flex; flex-direction:column; overflow:hidden; padding:8px 12px; position:relative; }
         .draft-pick-search { width:100%; margin-bottom:6px; flex-shrink:0; }
         .draft-champ-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(42px,1fr)); gap:2px; overflow-y:auto; flex:1; }
         .draft-champ-grid::-webkit-scrollbar { width:4px; }
@@ -279,7 +279,7 @@
         .draft-roster-champ.unavailable { pointer-events:none; }
         .draft-roster-champ.unavailable img { filter:grayscale(100%) brightness(.25); opacity:.5; }
         .draft-roster-champ.staged img { border-color:#c89b3c; box-shadow:0 0 6px #c89b3c88; }
-        #lockInBar { display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px 12px; background:#0d0d0d; border-bottom:1px solid #2a2a2a; flex-shrink:0; }
+        #lockInBar { position:absolute; bottom:0; left:0; right:0; z-index:10; display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px 12px; background:#0d0d0d; border-top:1px solid #2a2a2a; }
         #lockInChampName { font-size:15px; font-weight:700; color:#c89b3c; letter-spacing:2px; text-transform:uppercase; }
         #lockInBtn { width:100%; padding:14px 0; background:#c89b3c22; border:2px solid #c89b3c; border-radius:3px; color:#f0c060; font-size:16px; font-weight:700; letter-spacing:3px; text-transform:uppercase; cursor:pointer; transition:background .15s, color .15s; }
         #lockInBtn:hover { background:#c89b3c55; color:#fff; }
@@ -404,6 +404,7 @@
                 <div class="draft-status-bar">
                     <span class="draft-turn-label" id="draftTurnLabel">Waiting…</span>
                     <div class="draft-action-btns">
+                        <button class="draft-btn" id="lockInToggleBtn" onclick="toggleLockInMode()" title="Toggle lock-in confirmation">🔒 Lock-In: ON</button>
                         <button class="draft-btn primary" id="gameStartBtn" onclick="commitGame()" disabled>Game Start</button>
                     </div>
                 </div>
@@ -499,7 +500,7 @@ const RED_PICK_SLOTS  = [7,8,11,16,19];
 
 function getRoleDisplay(role) {
     const idx = ROLE_VALS.indexOf(role);
-    return idx === -1 ? role : `${ROLE_ICONS[idx]} ${ROLES[idx]}`;
+    return idx === -1 ? role : ROLES[idx];
 }
 function sortedPool(pool) {
     return [...pool].sort((a,b) => (TAG_ORDER[a.tag||'']??5)-(TAG_ORDER[b.tag||'']??5));
@@ -540,10 +541,12 @@ let saveTimer       = null;
 let lastSavedJSON   = '';
 let draftStaged       = null; // champion staged for lock-in (click to set)
 let draftHoverPreview = null; // transient mouse hover preview
+let lockInMode        = true; // true = require lock-in button; false = single-click commits
 let compBadgeTarget   = null; // {ci, ri, champId} for comp badge picker
 let compDragSrc       = null; // index of comp being reordered
 const collapsedComps  = new Set(); // indices of collapsed comp blocks
 const openThreats     = new Set(); // indices of comps with threats open
+const openPoolThreats = new Set(); // indices of members with threats open
 
 // ─── Apply Firebase data ──────────────────────────────────────────────────────
 function applyRecord(data) {
@@ -898,11 +901,33 @@ function renderMembers() {
                 </div>
                 <div class="role-label-static">${getRoleDisplay(m.role)}</div>
             </div>
-            <div class="member-pool"
-                 ondragover="onPoolBgDragOver(event,${mi})"
-                 ondragleave="onDragLeave(event)"
-                 ondrop="onDropPool(event,${mi})">
-                ${poolHtml}
+            <div style="flex:1;display:flex;flex-direction:column;gap:0;">
+                <div class="member-pool"
+                     ondragover="onPoolBgDragOver(event,${mi})"
+                     ondragleave="onDragLeave(event)"
+                     ondrop="onDropPool(event,${mi})">
+                    ${poolHtml}
+                </div>
+                ${(() => {
+                    const threats    = m.threats || [];
+                    const isOpen     = openPoolThreats.has(mi);
+                    const threatHtml = threats.map(tid => {
+                        const tc = getChamp(tid);
+                        return tc ? `<div class="threat-champ">
+                            <img src="${imgUrl(tc)}" title="${tc.name}">
+                            <button class="rm-btn" onclick="removePoolThreat(${mi},'${tid}')">×</button>
+                        </div>` : '';
+                    }).join('');
+                    return `<button class="threats-toggle" onclick="togglePoolThreats(${mi})">
+                        <span class="t-arrow">${isOpen ? '▼' : '▶'}</span>
+                        ☠ Threats ${threats.length ? `<span style="color:#e74c3c">(${threats.length})</span>` : ''}
+                    </button>
+                    ${isOpen ? `<div class="threats-drop"
+                         ondragover="onDragOver(event)" ondragleave="onDragLeave(event)"
+                         ondrop="onDropPoolThreats(event,${mi})">
+                        ${threatHtml || '<span style="color:#2a2a2a;font-size:11px">Drop threats here</span>'}
+                    </div>` : ''}`;
+                })()}
             </div>
         </div>`;
     }).join('');
@@ -974,6 +999,7 @@ function unavailableChamps() {
 
 // Hover (transient mouse preview) — just updates the active slot ghost, no commit
 function draftHoverEnter(champId) {
+    if (!draft.active) return;
     if (draftStaged) return; // staged takes priority
     if (draft.cursor >= 20) return;
     if (unavailableChamps().has(champId)) return;
@@ -988,6 +1014,7 @@ function draftHoverLeave() {
 
 // Stage a champion (click) — sticky preview, greyed out in picker, Lock In to commit
 function draftStageChamp(champId) {
+    if (!draft.active) return;
     if (draft.cursor >= 20) return;
     const unavail = unavailableChamps();
     // Allow re-staging the same champ (toggle off)
@@ -1004,6 +1031,8 @@ function draftStageChamp(champId) {
     if (unavail.has(champId)) return;
     draftStaged = champId;
     draftHoverPreview = null;
+    // Single-click mode: commit immediately
+    if (!lockInMode) { draftLockIn(); return; }
     // Clear search
     const s = document.getElementById('draftSearch');
     if (s) s.value = '';
@@ -1012,6 +1041,20 @@ function draftStageChamp(champId) {
     renderDraftBoard();
     renderDraftPools();
     renderDraftCompsRef();
+}
+
+function toggleLockInMode() {
+    lockInMode = !lockInMode;
+    // If switching off lock-in mode, clear any staged champ
+    if (!lockInMode && draftStaged) {
+        draftStaged = null;
+        draftHoverPreview = null;
+    }
+    const btn = document.getElementById('lockInToggleBtn');
+    if (btn) btn.textContent = `🔒 Lock-In: ${lockInMode ? 'ON' : 'OFF'}`;
+    renderDraftStatus();
+    renderDraftPicker();
+    renderDraftBoard();
 }
 
 // Lock In — commit the staged champion to the current draft slot
@@ -1218,13 +1261,16 @@ function renderDraftStatus() {
     const lockInBar    = document.getElementById('lockInBar');
     const lockInName   = document.getElementById('lockInChampName');
 
-    // Lock In bar visibility
-    if (draftStaged && cursor < 20) {
+    // Lock In bar visibility (only when lock-in mode is on)
+    if (lockInMode && draftStaged && cursor < 20) {
         lockInBar.style.display = 'flex';
         lockInName.textContent  = getChamp(draftStaged)?.name || draftStaged;
     } else {
         lockInBar.style.display = 'none';
     }
+    // Sync toggle button label
+    const lockInToggleBtn = document.getElementById('lockInToggleBtn');
+    if (lockInToggleBtn) lockInToggleBtn.textContent = `🔒 Lock-In: ${lockInMode ? 'ON' : 'OFF'}`;
 
     if (cursor >= 20) {
         document.getElementById('draftTurnLabel').innerHTML =
@@ -1253,7 +1299,7 @@ function renderDraftPicker() {
     const grid = document.getElementById('draftChampGrid');
     if (!grid) return;
 
-    const done = draft.cursor >= 20;
+    const done = draft.cursor >= 20 || !draft.active;
     grid.innerHTML = list.map(c => {
         const off     = unavail.has(c.id) || done;
         const staged  = !off && draftStaged === c.id;
@@ -1272,7 +1318,7 @@ function renderDraftPools() {
     if (!container) return;
     const unavail = unavailableChamps();
 
-    container.innerHTML = state.members.map(m => {
+    container.innerHTML = state.members.map((m, mi) => {
         const display = sortedPool(m.pool);
         if (!display.length) return `
             <div class="draft-member-row">
@@ -1286,22 +1332,38 @@ function renderDraftPools() {
                 <div class="draft-member-name">${escHtml(m.name)}<br>
                     <span style="font-size:10px;color:#444">${getRoleDisplay(m.role)}</span>
                 </div>
-                <div class="draft-member-pool">
-                    ${display.map(item => {
-                        const c = getChamp(item.id);
-                        if (!c) return '';
-                        const isFearless = draft.fearless.includes(c.id);
-                        const isDraftBan = currentDraftBans().includes(c.id);
-                        const isUnavail  = unavailableChamps().has(c.id);
-                        const isAvail    = !isFearless && !isDraftBan && !isUnavail && draft.cursor < 20;
-                        const isStaged   = draftStaged === c.id;
-                        return `<div class="draft-pool-champ ${isFearless ? 'fearless-banned' : ''} ${isDraftBan ? 'draft-banned' : ''} ${isStaged ? 'staged-pool' : ''} ${isAvail ? 'available' : ''}"
-                                     data-tag="${item.tag||''}"
-                                     ${isAvail ? `onclick="draftStageChamp('${c.id}')" onmouseenter="draftHoverEnter('${c.id}')" onmouseleave="draftHoverLeave()"` : ''}>
-                            <img src="${imgUrl(c)}" title="${c.name}">
-                            ${(item.badges||[]).length ? `<div class="pool-badges">${(item.badges||[]).map(b=>`<span class="pool-badge">${BADGE_ICONS[b]||b}</span>`).join('')}</div>` : ''}
-                        </div>`;
-                    }).join('')}
+                <div style="flex:1;display:flex;flex-direction:column;gap:0;">
+                    <div class="draft-member-pool">
+                        ${display.map(item => {
+                            const c = getChamp(item.id);
+                            if (!c) return '';
+                            const isFearless = draft.fearless.includes(c.id);
+                            const isDraftBan = currentDraftBans().includes(c.id);
+                            const isUnavail  = unavailableChamps().has(c.id);
+                            const isAvail    = !isFearless && !isDraftBan && !isUnavail && draft.cursor < 20 && draft.active;
+                            const isStaged   = draftStaged === c.id;
+                            return `<div class="draft-pool-champ ${isFearless ? 'fearless-banned' : ''} ${isDraftBan ? 'draft-banned' : ''} ${isStaged ? 'staged-pool' : ''} ${isAvail ? 'available' : ''}"
+                                         data-tag="${item.tag||''}"
+                                         ${isAvail ? `onclick="draftStageChamp('${c.id}')" onmouseenter="draftHoverEnter('${c.id}')" onmouseleave="draftHoverLeave()"` : ''}>
+                                <img src="${imgUrl(c)}" title="${c.name}">
+                                ${(item.badges||[]).length ? `<div class="pool-badges">${(item.badges||[]).map(b=>`<span class="pool-badge">${BADGE_ICONS[b]||b}</span>`).join('')}</div>` : ''}
+                            </div>`;
+                        }).join('')}
+                    </div>
+                    ${(() => {
+                        const threats = m.threats || [];
+                        if (!threats.length) return '';
+                        const isOpen = openPoolThreats.has(mi);
+                        const threatHtml = threats.map(tid => {
+                            const tc = getChamp(tid);
+                            return tc ? `<div class="threat-champ"><img src="${imgUrl(tc)}" title="${tc.name}"></div>` : '';
+                        }).join('');
+                        return `<button class="threats-toggle" onclick="togglePoolThreats(${mi}); renderDraftPools()">
+                            <span class="t-arrow">${isOpen ? '▼' : '▶'}</span>
+                            ☠ Threats <span style="color:#e74c3c">(${threats.length})</span>
+                        </button>
+                        ${isOpen ? `<div class="threats-drop" style="pointer-events:none">${threatHtml}</div>` : ''}`;
+                    })()}
                 </div>
             </div>`;
     }).join('');
@@ -1326,14 +1388,15 @@ function renderDraftCompsRef() {
                                 ? ids.map(cid => {
                                     const c = getChamp(cid);
                                     if (!c) return '';
-                                    const isUnavail = unavailableChamps().has(c.id) || draft.cursor >= 20;
+                                    const isGreyed   = unavailableChamps().has(c.id) || draft.cursor >= 20;
+                                    const isClickable = !isGreyed && draft.active;
                                     const isStaged  = draftStaged === c.id;
                                     const cbKey     = `${ri}:${c.id}`;
                                     const cbBadges  = (comp.champBadges||{})[cbKey] || [];
-                                    return `<div class="comp-champ ${isStaged ? 'staged-comp' : ''} ${!isUnavail ? 'draft-comp-champ-clickable' : ''}"
+                                    return `<div class="comp-champ ${isStaged ? 'staged-comp' : ''} ${isClickable ? 'draft-comp-champ-clickable' : ''}"
                                                  data-tag="${getPoolTag(c.id, ri)}" title="${c.name}"
-                                                 ${!isUnavail ? `onclick="draftStageChamp('${c.id}')" onmouseenter="draftHoverEnter('${c.id}')" onmouseleave="draftHoverLeave()"` : ''}>
-                                        <img src="${imgUrl(c)}" alt="${c.name}" ${isUnavail ? 'style="filter:grayscale(100%) brightness(.3);opacity:.4"' : ''}>
+                                                 ${isClickable ? `onclick="draftStageChamp('${c.id}')" onmouseenter="draftHoverEnter('${c.id}')" onmouseleave="draftHoverLeave()"` : ''}>
+                                        <img src="${imgUrl(c)}" alt="${c.name}" ${isGreyed ? 'style="filter:grayscale(100%) brightness(.3);opacity:.4"' : ''}>
                                         ${cbBadges.length ? `<div class="comp-badges">${cbBadges.map(b=>`<span class="comp-badge">${BADGE_ICONS[b]||b}</span>`).join('')}</div>` : ''}
                                     </div>`;
                                 }).join('')
@@ -1633,6 +1696,28 @@ function toggleThreats(ci) {
     else openThreats.add(ci);
     renderAllComps();
     renderDraftCompsRef();
+}
+function togglePoolThreats(mi) {
+    if (openPoolThreats.has(mi)) openPoolThreats.delete(mi);
+    else openPoolThreats.add(mi);
+    renderMembers();
+}
+function onDropPoolThreats(e, mi) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    if (!dragData) return;
+    const threats = state.members[mi].threats || (state.members[mi].threats = []);
+    if (!threats.includes(dragData.champId)) {
+        threats.push(dragData.champId);
+        renderMembers();
+        scheduleSave();
+    }
+    dragData = null;
+}
+function removePoolThreat(mi, champId) {
+    state.members[mi].threats = (state.members[mi].threats || []).filter(id => id !== champId);
+    renderMembers();
+    scheduleSave();
 }
 function onDropThreats(e, ci) {
     e.preventDefault();
