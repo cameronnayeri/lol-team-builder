@@ -110,6 +110,16 @@
         .tag-legend-row { display:flex; gap:10px; align-items:center; font-size:11px; color:#444; margin-bottom:7px; flex-wrap:wrap; flex-shrink:0; }
         .tag-legend-item { display:flex; align-items:center; gap:4px; }
         .tag-dot { width:8px; height:8px; border-radius:50%; }
+        .tag-picker-sep { width:1px; background:#333; margin:0 2px; align-self:stretch; flex-shrink:0; }
+        .badge-opt { background:#1a1a1a; border:1px solid #333; border-radius:3px; font-size:13px; cursor:pointer; padding:2px 5px; line-height:1; transition:border-color .1s,background .1s; flex-shrink:0; }
+        .badge-opt:hover { border-color:#888; }
+        .badge-opt.active { border-color:#fff; background:#2a2a2a; }
+        .pool-badges { position:absolute; bottom:4px; left:0; right:0; display:flex; justify-content:center; gap:2px; pointer-events:none; z-index:10; }
+        .pool-badge { font-size:9px; line-height:1.3; background:rgba(0,0,0,.82); border-radius:2px; padding:0 2px; }
+        .comp-badges { position:absolute; bottom:0; left:0; right:0; display:flex; justify-content:center; gap:1px; pointer-events:none; z-index:10; }
+        .comp-badge { font-size:8px; line-height:1.3; background:rgba(0,0,0,.85); border-radius:2px; padding:0 1px; }
+        #compBadgePicker { position:fixed; z-index:1001; background:#1a1a1a; border:1px solid #333; border-radius:3px; padding:5px; display:none; gap:4px; align-items:center; box-shadow:0 4px 14px rgba(0,0,0,.7); }
+        #compBadgePicker.open { display:flex; }
 
         /* ── Comps panel ── */
         .comps-scroll { overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:10px; }
@@ -432,6 +442,12 @@
 </div>
 
 <!-- Floating tag picker -->
+<div id="compBadgePicker">
+    <button class="badge-opt" id="cbBlind"   onclick="toggleCompBadge('blind')"   title="Blind Pick">👁</button>
+    <button class="badge-opt" id="cbComfort" onclick="toggleCompBadge('comfort')" title="Comfort">🔥</button>
+    <button class="badge-opt" id="cbStar"    onclick="toggleCompBadge('star')"    title="Star">⭐</button>
+</div>
+
 <div id="tagPicker">
     <button class="tag-opt tag-opt-clear" onclick="setTag('')" title="Clear">✕</button>
     <button class="tag-opt" style="background:#e74c3c" onclick="setTag('best')"         title="Best"></button>
@@ -439,6 +455,10 @@
     <button class="tag-opt" style="background:#d4ac0d" onclick="setTag('decent')"       title="Decent"></button>
     <button class="tag-opt" style="background:#2ecc71" onclick="setTag('questionable')" title="Questionable"></button>
     <button class="tag-opt" style="background:#3498db" onclick="setTag('stretch')"      title="Stretch"></button>
+    <div class="tag-picker-sep"></div>
+    <button class="badge-opt" id="badgeBlind"   onclick="toggleBadge('blind')"   title="Blind Pick">👁</button>
+    <button class="badge-opt" id="badgeComfort" onclick="toggleBadge('comfort')" title="Comfort">🔥</button>
+    <button class="badge-opt" id="badgeStar"    onclick="toggleBadge('star')"    title="Star">⭐</button>
 </div>
 
 <script>
@@ -490,7 +510,7 @@ const state = {
     version: null,
     champions: [],
     bans: [],
-    comps: [{ name:'Comp 1', slots:[[],[],[],[],[],[]], core:[false,false,false,false,false,false], threats:[] }],
+    comps: [{ name:'Comp 1', slots:[[],[],[],[],[],[]], core:[false,false,false,false,false,false], threats:[], champBadges:{} }],
     members: [
         { name:'PUSH',          role:'top',     pool:[], emoji:'' },
         { name:'GENISYS',       role:'jungle',  pool:[], emoji:'' },
@@ -520,6 +540,7 @@ let saveTimer       = null;
 let lastSavedJSON   = '';
 let draftStaged       = null; // champion staged for lock-in (click to set)
 let draftHoverPreview = null; // transient mouse hover preview
+let compBadgeTarget   = null; // {ci, ri, champId} for comp badge picker
 let compDragSrc       = null; // index of comp being reordered
 const collapsedComps  = new Set(); // indices of collapsed comp blocks
 const openThreats     = new Set(); // indices of comps with threats open
@@ -533,7 +554,8 @@ function applyRecord(data) {
             ? comp.slots
             : Array.from({ length: 6 }, (_, i) => comp.slots[i] || []),
         core: comp.core ?? [false,false,false,false,false,false],
-        threats: comp.threats ?? [],
+        threats:     comp.threats     ?? [],
+        champBadges: comp.champBadges ?? {},
     }));
     state.bans = data.bans || [];
 
@@ -795,6 +817,8 @@ function renderAllComps() {
                             ${ids.length
                                 ? ids.map(cid => {
                                     const c = getChamp(cid);
+                                    const cbKey    = `${ri}:${c.id}`;
+                                    const cbBadges = (comp.champBadges||{})[cbKey] || [];
                                     return c ? `
                                     <div class="comp-champ ${isBanned(c.id) ? 'banned' : ''}"
                                          draggable="true"
@@ -803,9 +827,11 @@ function renderAllComps() {
                                          ondragover="onCompChampDragOver(event,${ci},${ri})"
                                          ondragleave="onCompChampDragLeave(event)"
                                          ondrop="onDropCompReorder(event,${ci},${ri},'${c.id}')"
+                                         onclick="openCompBadgePicker(event,${ci},${ri},'${c.id}')"
                                          oncontextmenu="event.preventDefault(); removeFromSlot(${ci},${ri},'${c.id}')">
                                         <img src="${imgUrl(c)}" alt="${c.name}" title="${c.name}">
-                                        <button class="rm-btn" onclick="removeFromSlot(${ci},${ri},'${c.id}')">×</button>
+                                        <button class="rm-btn" onclick="event.stopPropagation(); removeFromSlot(${ci},${ri},'${c.id}')">×</button>
+                                        ${cbBadges.length ? `<div class="comp-badges">${cbBadges.map(b=>`<span class="comp-badge">${BADGE_ICONS[b]||b}</span>`).join('')}</div>` : ''}
                                         <div class="champ-lbl">${c.name}</div>
                                     </div>` : '';
                                 }).join('')
@@ -858,6 +884,7 @@ function renderMembers() {
                          oncontextmenu="event.preventDefault(); removeFromPool(${mi},'${c.id}')">
                         <img src="${imgUrl(c)}" alt="${c.name}" title="${c.name}">
                         <button class="rm-btn" onclick="event.stopPropagation(); removeFromPool(${mi},'${c.id}')">×</button>
+                        ${(item.badges||[]).length ? `<div class="pool-badges">${(item.badges||[]).map(b=>`<span class="pool-badge">${BADGE_ICONS[b]||b}</span>`).join('')}</div>` : ''}
                         <div class="pool-tag-bar"></div>
                     </div>` : '';
             }).join('');
@@ -1272,6 +1299,7 @@ function renderDraftPools() {
                                      data-tag="${item.tag||''}"
                                      ${isAvail ? `onclick="draftStageChamp('${c.id}')" onmouseenter="draftHoverEnter('${c.id}')" onmouseleave="draftHoverLeave()"` : ''}>
                             <img src="${imgUrl(c)}" title="${c.name}">
+                            ${(item.badges||[]).length ? `<div class="pool-badges">${(item.badges||[]).map(b=>`<span class="pool-badge">${BADGE_ICONS[b]||b}</span>`).join('')}</div>` : ''}
                         </div>`;
                     }).join('')}
                 </div>
@@ -1289,9 +1317,10 @@ function renderDraftCompsRef() {
             </div>
             <div class="comp-slots">
                 ${ROLES.slice(0,5).map((role, ri) => {
-                    const ids = comp.slots[ri] || [];
-                    return `<div class="role-col">
-                        <div class="role-label">${ROLE_ICONS[ri]} ${role}</div>
+                    const ids    = comp.slots[ri] || [];
+                    const isCore = comp.core?.[ri] ?? false;
+                    return `<div class="role-col ${isCore ? 'core' : ''}">
+                        <div class="role-label">${role}</div>
                         <div class="role-drop-zone ${ids.length ? 'has-champs' : ''}">
                             ${ids.length
                                 ? ids.map(cid => {
@@ -1299,10 +1328,13 @@ function renderDraftCompsRef() {
                                     if (!c) return '';
                                     const isUnavail = unavailableChamps().has(c.id) || draft.cursor >= 20;
                                     const isStaged  = draftStaged === c.id;
+                                    const cbKey     = `${ri}:${c.id}`;
+                                    const cbBadges  = (comp.champBadges||{})[cbKey] || [];
                                     return `<div class="comp-champ ${isStaged ? 'staged-comp' : ''} ${!isUnavail ? 'draft-comp-champ-clickable' : ''}"
                                                  data-tag="${getPoolTag(c.id, ri)}" title="${c.name}"
                                                  ${!isUnavail ? `onclick="draftStageChamp('${c.id}')" onmouseenter="draftHoverEnter('${c.id}')" onmouseleave="draftHoverLeave()"` : ''}>
                                         <img src="${imgUrl(c)}" alt="${c.name}" ${isUnavail ? 'style="filter:grayscale(100%) brightness(.3);opacity:.4"' : ''}>
+                                        ${cbBadges.length ? `<div class="comp-badges">${cbBadges.map(b=>`<span class="comp-badge">${BADGE_ICONS[b]||b}</span>`).join('')}</div>` : ''}
                                     </div>`;
                                 }).join('')
                                 : '<span class="slot-placeholder">+</span>'}
@@ -1328,6 +1360,8 @@ function renderDraftCompsRef() {
 }
 
 // ─── Tag Picker ───────────────────────────────────────────────────────────────
+const BADGE_ICONS = { blind:'👁', comfort:'🔥', star:'⭐' };
+
 function openTagPicker(e, memberIdx, champId) {
     e.stopPropagation();
     const rect   = e.currentTarget.getBoundingClientRect();
@@ -1336,7 +1370,70 @@ function openTagPicker(e, memberIdx, champId) {
     picker.style.top  = (rect.bottom + 5) + 'px';
     picker.classList.add('open');
     tagPickerTarget = { memberIdx, champId };
+    updateBadgePickerState();
 }
+function updateBadgePickerState() {
+    if (!tagPickerTarget) return;
+    const item   = state.members[tagPickerTarget.memberIdx].pool.find(p => p.id === tagPickerTarget.champId);
+    const badges = item?.badges || [];
+    document.getElementById('badgeBlind').classList.toggle('active',   badges.includes('blind'));
+    document.getElementById('badgeComfort').classList.toggle('active', badges.includes('comfort'));
+    document.getElementById('badgeStar').classList.toggle('active',    badges.includes('star'));
+}
+function toggleBadge(badge) {
+    if (!tagPickerTarget) return;
+    const item = state.members[tagPickerTarget.memberIdx].pool.find(p => p.id === tagPickerTarget.champId);
+    if (!item) return;
+    if (!item.badges) item.badges = [];
+    const idx = item.badges.indexOf(badge);
+    if (idx === -1) item.badges.push(badge); else item.badges.splice(idx, 1);
+    updateBadgePickerState();
+    renderMembers();
+    scheduleSave();
+    // keep picker open so multiple badges can be toggled
+}
+function openCompBadgePicker(e, ci, ri, champId) {
+    if (e.target.classList.contains('rm-btn')) return;
+    e.stopPropagation();
+    closeTagPicker();
+    const rect   = e.currentTarget.getBoundingClientRect();
+    const picker = document.getElementById('compBadgePicker');
+    picker.style.left = rect.left + 'px';
+    picker.style.top  = (rect.bottom + 4) + 'px';
+    picker.classList.add('open');
+    compBadgeTarget = { ci, ri, champId };
+    updateCompBadgePickerState();
+}
+function updateCompBadgePickerState() {
+    if (!compBadgeTarget) return;
+    const { ci, ri, champId } = compBadgeTarget;
+    const key    = `${ri}:${champId}`;
+    const badges = (state.comps[ci].champBadges || {})[key] || [];
+    document.getElementById('cbBlind').classList.toggle('active',   badges.includes('blind'));
+    document.getElementById('cbComfort').classList.toggle('active', badges.includes('comfort'));
+    document.getElementById('cbStar').classList.toggle('active',    badges.includes('star'));
+}
+function toggleCompBadge(badge) {
+    if (!compBadgeTarget) return;
+    const { ci, ri, champId } = compBadgeTarget;
+    const key = `${ri}:${champId}`;
+    if (!state.comps[ci].champBadges) state.comps[ci].champBadges = {};
+    const badges = state.comps[ci].champBadges[key] || [];
+    const idx = badges.indexOf(badge);
+    if (idx === -1) badges.push(badge); else badges.splice(idx, 1);
+    state.comps[ci].champBadges[key] = badges;
+    updateCompBadgePickerState();
+    renderAllComps();
+    scheduleSave();
+}
+function closeCompBadgePicker() {
+    document.getElementById('compBadgePicker').classList.remove('open');
+    compBadgeTarget = null;
+}
+document.addEventListener('click', e => {
+    if (!e.target.closest('#compBadgePicker')) closeCompBadgePicker();
+});
+
 function setTag(tag) {
     if (!tagPickerTarget) return;
     const item = state.members[tagPickerTarget.memberIdx].pool
@@ -1376,7 +1473,7 @@ function clearBans() {
 
 // ─── Comp Management ─────────────────────────────────────────────────────────
 function addComp() {
-    state.comps.push({ name:`Comp ${state.comps.length+1}`, slots:[[],[],[],[],[],[]], core:[false,false,false,false,false,false], threats:[] });
+    state.comps.push({ name:`Comp ${state.comps.length+1}`, slots:[[],[],[],[],[],[]], core:[false,false,false,false,false,false], threats:[], champBadges:{} });
     renderAllComps(); scheduleSave();
 }
 function deleteComp(idx) {
