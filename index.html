@@ -270,7 +270,7 @@
         /* Draft champion picker */
         .draft-picker { flex:1; display:flex; flex-direction:column; overflow:hidden; padding:8px 12px; position:relative; }
         .draft-pick-search { width:100%; margin-bottom:6px; flex-shrink:0; }
-        .draft-champ-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(42px,1fr)); gap:2px; overflow-y:auto; flex:1; }
+        .draft-champ-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(42px,1fr)); grid-auto-rows:max-content; column-gap:2px; row-gap:2px; overflow-y:auto; flex:1; align-items:start; }
         .draft-champ-grid::-webkit-scrollbar { width:4px; }
         .draft-champ-grid::-webkit-scrollbar-thumb { background:#2a2a2a; border-radius:2px; }
         .draft-roster-champ { position:relative; cursor:pointer; border-radius:1px; }
@@ -303,6 +303,14 @@
         .winner-btn:hover { border-color:#fff; color:#fff; }
         .winner-btn.home-btn:hover { border-color:#4e9eff; color:#4e9eff; }
         .winner-btn.away-btn:hover { border-color:#ff5555; color:#ff5555; }
+        /* ── Map Overlay ── */
+        /* ── Map Canvas ── */
+        .draft-vs-map { flex:2; min-width:180px; display:flex; align-items:center; justify-content:center; padding:6px; }
+        #mapCanvas { width:100%; aspect-ratio:2/1; position:relative; overflow:hidden; background:#0a0a0a; cursor:crosshair; border:1px solid #1a1a1a; }
+        .map-token { position:absolute; transform:translate(-50%,-50%); z-index:5; cursor:grab; user-select:none; }
+        .map-token img { border-radius:50%; display:block; border:2px solid #888; }
+        /* Glow effect for champs on the map */
+        #tabDraft [data-champid].map-glow { outline:2px solid #c89b3c99; outline-offset:1px; border-radius:2px; }
     </style>
 </head>
 <body>
@@ -430,6 +438,27 @@
     </div>
 </div>
 
+<!-- Map canvas — persistent node, moved into draft board VS column by renderDraftBoard() -->
+<div id="mapCanvas" style="display:none"
+     ondragover="mapCanvasDragOver(event)"
+     ondrop="mapCanvasDrop(event)">
+    <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none">
+        <rect width="400" height="400" fill="#0a0a0a"/>
+        <polyline points="45,355 45,45 355,45" fill="none" stroke="#111" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="45,355 45,45 355,45" fill="none" stroke="#2a2a2a" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="45,355 355,355 355,45" fill="none" stroke="#111" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="45,355 355,355 355,45" fill="none" stroke="#2a2a2a" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="45" y1="355" x2="355" y2="45" stroke="#111" stroke-width="24" stroke-linecap="round"/>
+        <line x1="45" y1="355" x2="355" y2="45" stroke="#2a2a2a" stroke-width="14" stroke-linecap="round"/>
+        <circle cx="45" cy="355" r="38" fill="#0a0a14" stroke="#333" stroke-width="1.5"/>
+        <circle cx="45" cy="355" r="11" fill="#1144cc" stroke="#4488ff" stroke-width="2"/>
+        <circle cx="355" cy="45" r="38" fill="#140a0a" stroke="#333" stroke-width="1.5"/>
+        <circle cx="355" cy="45" r="11" fill="#cc1111" stroke="#ff4444" stroke-width="2"/>
+        <text x="45" y="310" text-anchor="middle" fill="#4488ff" font-size="18" font-family="monospace" font-weight="bold" id="mapBlueLabel">HOME</text>
+        <text x="355" y="90" text-anchor="middle" fill="#ff4444" font-size="18" font-family="monospace" font-weight="bold" id="mapRedLabel">AWAY</text>
+    </svg>
+</div>
+
 <!-- Winner modal (hidden) -->
 <div class="winner-overlay" id="winnerOverlay" style="display:none">
     <div class="winner-modal">
@@ -441,6 +470,8 @@
         </div>
     </div>
 </div>
+
+<!-- Map Overlay -->
 
 <!-- Floating tag picker -->
 <div id="compBadgePicker">
@@ -542,6 +573,9 @@ let lastSavedJSON   = '';
 let draftStaged       = null; // champion staged for lock-in (click to set)
 let draftHoverPreview = null; // transient mouse hover preview
 let lockInMode        = true; // true = require lock-in button; false = single-click commits
+let mapPlacements = []; // [{ uid, champId, x, y }] — allows duplicates
+let mapIconSize   = 36; // px — changed by scroll wheel on canvas
+let mapDrag = null;     // { uid, ghost } for repositioning existing tokens
 let compBadgeTarget   = null; // {ci, ri, champId} for comp badge picker
 let compDragSrc       = null; // index of comp being reordered
 const collapsedComps  = new Set(); // indices of collapsed comp blocks
@@ -970,6 +1004,7 @@ function endSeries() {
     draft.games       = [];
     draft.slots       = Array(20).fill(null);
     draft.cursor      = 0;
+    mapPlacements = [];
     scheduleSaveImmediate();
     renderDraftTab();
 }
@@ -1042,6 +1077,132 @@ function draftStageChamp(champId) {
     renderDraftPools();
     renderDraftCompsRef();
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAP OVERLAY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAP CANVAS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function renderMapCanvas() {
+    const canvas = document.getElementById('mapCanvas');
+    if (!canvas) return;
+
+    // Update HOME/AWAY labels
+    const isHomeBlue = draft.blueSide === 'home';
+    const bl = document.getElementById('mapBlueLabel');
+    const rl = document.getElementById('mapRedLabel');
+    if (bl) bl.textContent = isHomeBlue ? 'HOME' : 'AWAY';
+    if (rl) rl.textContent = isHomeBlue ? 'AWAY' : 'HOME';
+
+    // Remove existing tokens
+    canvas.querySelectorAll('.map-token').forEach(el => el.remove());
+
+    // Re-render all placements
+    mapPlacements.forEach(p => {
+        const c = getChamp(p.champId);
+        if (!c) return;
+        const sz = p.size || mapIconSize;
+        const token = document.createElement('div');
+        token.className = 'map-token';
+        token.style.left = p.x + '%';
+        token.style.top  = p.y + '%';
+        token.dataset.uid = p.uid;
+        token.title = c.name + ' · right-click to remove · scroll to resize';
+        token.innerHTML = `<img src="${imgUrl(c)}" style="width:${sz}px;height:${sz}px;border-radius:50%">`;
+        token.addEventListener('pointerdown', e => startMapTokenDrag(e, p.uid));
+        token.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); removeMapToken(p.uid); });
+        token.addEventListener('wheel', e => {
+            e.preventDefault(); e.stopPropagation();
+            const pl = mapPlacements.find(m => m.uid == p.uid);
+            if (pl) { pl.size = Math.max(20, Math.min(72, (pl.size || mapIconSize) - Math.sign(e.deltaY) * 4)); renderMapCanvas(); }
+        }, { passive: false });
+        canvas.appendChild(token);
+    });
+}
+
+function updateMapGlows() {
+    const onMap = new Set(mapPlacements.map(p => p.champId));
+    document.querySelectorAll('#tabDraft [data-champid]').forEach(el => {
+        el.classList.toggle('map-glow', onMap.has(el.dataset.champid));
+    });
+}
+
+// HTML5 drop from any draggable champ (pool, comp, picker grid)
+function mapCanvasDragOver(e) {
+    if (!dragData) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+}
+function mapCanvasDrop(e) {
+    e.preventDefault();
+    if (!dragData) return;
+    const champId = dragData.champId;
+    dragData = null;
+    const canvas = document.getElementById('mapCanvas');
+    const rect = canvas.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width)  * 100;
+    const y = ((e.clientY - rect.top)  / rect.height) * 100;
+    mapPlacements.push({ uid: Date.now() + '_' + Math.random(), champId, x, y, size: mapIconSize });
+    renderMapCanvas();
+    updateMapGlows();
+}
+
+// Reposition existing token by pointer drag
+function startMapTokenDrag(e, uid) {
+    e.preventDefault();
+    e.stopPropagation();
+    const p = mapPlacements.find(p => p.uid == uid);
+    if (!p) return;
+    const c = getChamp(p.champId);
+    if (!c) return;
+    const ghost = document.createElement('div');
+    ghost.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);';
+    const sz = p.size || mapIconSize;
+    ghost.innerHTML = `<img src="${imgUrl(c)}" style="width:${sz}px;height:${sz}px;border-radius:50%;border:2px solid #c89b3c;opacity:0.85;">`;
+    document.body.appendChild(ghost);
+    ghost.style.left = e.clientX + 'px';
+    ghost.style.top  = e.clientY + 'px';
+    // Remove from placements while dragging
+    mapPlacements = mapPlacements.filter(m => m.uid != uid);
+    renderMapCanvas();
+    mapDrag = { uid, champId: p.champId, size: sz, ghost };
+    document.addEventListener('pointermove', onMapTokenMove);
+    document.addEventListener('pointerup', onMapTokenUp);
+}
+function onMapTokenMove(e) {
+    if (!mapDrag) return;
+    mapDrag.ghost.style.left = e.clientX + 'px';
+    mapDrag.ghost.style.top  = e.clientY + 'px';
+}
+function onMapTokenUp(e) {
+    if (!mapDrag) return;
+    const { uid, champId, size, ghost } = mapDrag;
+    ghost.remove();
+    mapDrag = null;
+    document.removeEventListener('pointermove', onMapTokenMove);
+    document.removeEventListener('pointerup', onMapTokenUp);
+    const canvas = document.getElementById('mapCanvas');
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    if (e.clientX >= rect.left && e.clientX <= rect.right &&
+        e.clientY >= rect.top  && e.clientY <= rect.bottom) {
+        const x = ((e.clientX - rect.left) / rect.width)  * 100;
+        const y = ((e.clientY - rect.top)  / rect.height) * 100;
+        mapPlacements.push({ uid, champId, x, y, size });
+    }
+    renderMapCanvas();
+    updateMapGlows();
+}
+
+function removeMapToken(uid) {
+    mapPlacements = mapPlacements.filter(p => p.uid != uid);
+    renderMapCanvas();
+    updateMapGlows();
+}
+
 
 function toggleLockInMode() {
     lockInMode = !lockInMode;
@@ -1175,6 +1336,10 @@ function renderDraftTab() {
 
     // Champion picker
     renderDraftPicker();
+
+    // Map canvas
+    renderMapCanvas();
+    updateMapGlows();
 }
 
 function renderDraftBoard() {
@@ -1216,7 +1381,8 @@ function renderDraftBoard() {
         if (id) {
             const c = getChamp(id);
             const fearCls = draft.fearless.includes(id) ? 'fearless' : '';
-            return `<div class="draft-pick-cell ${cls} ${fearCls}">
+            return `<div class="draft-pick-cell ${cls} ${fearCls}"
+                         draggable="true" ondragstart="dragData={champId:'${id}',source:'draft-pick'};event.dataTransfer.effectAllowed='copy';">
                 ${c ? `<img src="${imgUrl(c)}" title="${c.name}">
                        <div class="pick-name">${c.name}</div>` : '<span>?</span>'}
             </div>`;
@@ -1241,18 +1407,27 @@ function renderDraftBoard() {
     const homeColor = homeTeam === 'blue' ? 'blue' : 'red';
     const awayColor = awayTeam === 'blue' ? 'blue' : 'red';
 
+    // Detach mapCanvas before wiping innerHTML (preserves its children/tokens)
+    const mapCanvas = document.getElementById('mapCanvas');
+    if (mapCanvas.parentElement) mapCanvas.parentElement.removeChild(mapCanvas);
+
     document.getElementById('draftBoard').innerHTML = `
         <div class="draft-team-col">
             <div class="draft-team-label ${homeColor}">HOME · ${homeTeam === 'blue' ? 'Blue Side' : 'Red Side'}</div>
             <div class="draft-bans-row">${homeBans}</div>
             <div class="draft-picks-col">${homePicks}</div>
         </div>
-        <div class="draft-vs"><span class="draft-vs-label">VS</span></div>
+        <div class="draft-vs-map"></div>
         <div class="draft-team-col red-col">
             <div class="draft-team-label ${awayColor}" style="text-align:right">AWAY · ${awayTeam === 'blue' ? 'Blue Side' : 'Red Side'}</div>
             <div class="draft-bans-row" style="flex-direction:row-reverse">${awayBans}</div>
             <div class="draft-picks-col" style="align-items:flex-end">${awayPicks}</div>
         </div>`;
+
+    // Re-attach mapCanvas into VS slot and make it visible
+    const vsSlot = document.querySelector('.draft-vs-map');
+    mapCanvas.style.display = '';
+    vsSlot.appendChild(mapCanvas);
 }
 
 function renderDraftStatus() {
@@ -1304,6 +1479,8 @@ function renderDraftPicker() {
         const off     = unavail.has(c.id) || done;
         const staged  = !off && draftStaged === c.id;
         return `<div class="draft-roster-champ ${off ? 'unavailable' : ''} ${staged ? 'staged' : ''}"
+                     data-champid="${c.id}"
+                     draggable="true" ondragstart="dragData={champId:'${c.id}',source:'draft-picker'};event.dataTransfer.effectAllowed='copy';"
                      onclick="${off ? '' : `draftStageChamp('${c.id}')`}"
                      onmouseenter="${off ? '' : `draftHoverEnter('${c.id}')`}"
                      onmouseleave="${off ? '' : `draftHoverLeave()`}">
@@ -1343,7 +1520,8 @@ function renderDraftPools() {
                             const isAvail    = !isFearless && !isDraftBan && !isUnavail && draft.cursor < 20 && draft.active;
                             const isStaged   = draftStaged === c.id;
                             return `<div class="draft-pool-champ ${isFearless ? 'fearless-banned' : ''} ${isDraftBan ? 'draft-banned' : ''} ${isStaged ? 'staged-pool' : ''} ${isAvail ? 'available' : ''}"
-                                         data-tag="${item.tag||''}"
+                                         data-tag="${item.tag||''}" data-champid="${c.id}"
+                                         draggable="true" ondragstart="dragData={champId:'${c.id}',source:'draft-pool'};event.dataTransfer.effectAllowed='copy';"
                                          ${isAvail ? `onclick="draftStageChamp('${c.id}')" onmouseenter="draftHoverEnter('${c.id}')" onmouseleave="draftHoverLeave()"` : ''}>
                                 <img src="${imgUrl(c)}" title="${c.name}">
                                 ${(item.badges||[]).length ? `<div class="pool-badges">${(item.badges||[]).map(b=>`<span class="pool-badge">${BADGE_ICONS[b]||b}</span>`).join('')}</div>` : ''}
@@ -1394,7 +1572,8 @@ function renderDraftCompsRef() {
                                     const cbKey     = `${ri}:${c.id}`;
                                     const cbBadges  = (comp.champBadges||{})[cbKey] || [];
                                     return `<div class="comp-champ ${isStaged ? 'staged-comp' : ''} ${isClickable ? 'draft-comp-champ-clickable' : ''}"
-                                                 data-tag="${getPoolTag(c.id, ri)}" title="${c.name}"
+                                                 data-tag="${getPoolTag(c.id, ri)}" data-champid="${c.id}" title="${c.name}"
+                                                 draggable="true" ondragstart="dragData={champId:'${c.id}',source:'draft-comp'};event.dataTransfer.effectAllowed='copy';"
                                                  ${isClickable ? `onclick="draftStageChamp('${c.id}')" onmouseenter="draftHoverEnter('${c.id}')" onmouseleave="draftHoverLeave()"` : ''}>
                                         <img src="${imgUrl(c)}" alt="${c.name}" ${isGreyed ? 'style="filter:grayscale(100%) brightness(.3);opacity:.4"' : ''}>
                                         ${cbBadges.length ? `<div class="comp-badges">${cbBadges.map(b=>`<span class="comp-badge">${BADGE_ICONS[b]||b}</span>`).join('')}</div>` : ''}
