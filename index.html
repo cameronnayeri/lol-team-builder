@@ -150,6 +150,14 @@
         .comp-champ .champ-lbl { font-size:9px; color:#555; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:40px; }
         .add-comp-btn { margin-top:6px; padding:7px 0; background:transparent; border:1px dashed #2a2a2a; border-radius:2px; color:#444; font-size:12px; cursor:pointer; width:100%; transition:border-color .1s,color .1s; flex-shrink:0; }
         .add-comp-btn:hover { border-color:#888; color:#e0e0e0; }
+        .threats-toggle { width:100%; background:none; border:none; border-top:1px solid #1a1a1a; color:#444; font-size:10px; letter-spacing:1.5px; text-transform:uppercase; cursor:pointer; padding:4px 0; text-align:left; display:flex; align-items:center; gap:5px; margin-top:4px; transition:color .1s; }
+        .threats-toggle:hover { color:#888; }
+        .threats-toggle .t-arrow { font-size:8px; }
+        .threats-drop { display:flex; flex-wrap:wrap; gap:3px; padding:5px; border:1px dashed #2a2a2a; border-radius:2px; background:#0d0d0d; min-height:36px; margin-top:3px; align-content:flex-start; transition:border-color .1s, background .1s; }
+        .threats-drop.drag-over { border-color:#e74c3c; background:#1a0a0a; }
+        .threat-champ { position:relative; width:36px; flex-shrink:0; }
+        .threat-champ img { width:36px; height:36px; object-fit:cover; border-radius:2px; border:1px solid #5a1a1a; display:block; filter:sepia(40%) saturate(200%) hue-rotate(320deg) brightness(.8); }
+        .threat-champ:hover .rm-btn { display:flex; }
 
         /* ── Tooltip ── */
         .tip { position:absolute; bottom:calc(100% + 3px); left:50%; transform:translateX(-50%); background:#000; border:1px solid #333; color:#e0e0e0; font-size:11px; padding:2px 7px; border-radius:2px; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .1s; z-index:999; }
@@ -482,7 +490,7 @@ const state = {
     version: null,
     champions: [],
     bans: [],
-    comps: [{ name:'Comp 1', slots:[[],[],[],[],[],[]], core:[false,false,false,false,false,false] }],
+    comps: [{ name:'Comp 1', slots:[[],[],[],[],[],[]], core:[false,false,false,false,false,false], threats:[] }],
     members: [
         { name:'PUSH',          role:'top',     pool:[], emoji:'' },
         { name:'GENISYS',       role:'jungle',  pool:[], emoji:'' },
@@ -514,6 +522,7 @@ let draftStaged       = null; // champion staged for lock-in (click to set)
 let draftHoverPreview = null; // transient mouse hover preview
 let compDragSrc       = null; // index of comp being reordered
 const collapsedComps  = new Set(); // indices of collapsed comp blocks
+const openThreats     = new Set(); // indices of comps with threats open
 
 // ─── Apply Firebase data ──────────────────────────────────────────────────────
 function applyRecord(data) {
@@ -524,6 +533,7 @@ function applyRecord(data) {
             ? comp.slots
             : Array.from({ length: 6 }, (_, i) => comp.slots[i] || []),
         core: comp.core ?? [false,false,false,false,false,false],
+        threats: comp.threats ?? [],
     }));
     state.bans = data.bans || [];
 
@@ -772,7 +782,8 @@ function renderAllComps() {
                 ${state.comps.length > 1
                     ? `<button class="comp-del-btn" onclick="deleteComp(${ci})">×</button>` : ''}
             </div>
-            ${collapsed ? '' : `<div class="comp-slots">
+            ${collapsed ? '' : `
+            <div class="comp-slots">
                 ${ROLES.slice(0,5).map((role, ri) => {
                     const ids    = comp.slots[ri] || [];
                     const isCore = comp.core?.[ri] ?? false;
@@ -802,7 +813,28 @@ function renderAllComps() {
                         </div>
                     </div>`;
                 }).join('')}
-            </div>`}
+            </div>
+            ${(() => {
+                const threats    = comp.threats || [];
+                const isOpen     = openThreats.has(ci);
+                const threatHtml = threats.map(tid => {
+                    const tc = getChamp(tid);
+                    return tc ? `<div class="threat-champ">
+                        <img src="${imgUrl(tc)}" title="${tc.name}">
+                        <button class="rm-btn" onclick="removeThreat(${ci},'${tid}')">×</button>
+                    </div>` : '';
+                }).join('');
+                return `<button class="threats-toggle" onclick="toggleThreats(${ci})">
+                    <span class="t-arrow">${isOpen ? '▼' : '▶'}</span>
+                    ☠ Threats ${threats.length ? `<span style="color:#e74c3c">(${threats.length})</span>` : ''}
+                </button>
+                ${isOpen ? `<div class="threats-drop"
+                     ondragover="onDragOver(event)" ondragleave="onDragLeave(event)"
+                     ondrop="onDropThreats(event,${ci})">
+                    ${threatHtml || '<span style="color:#2a2a2a;font-size:11px">Drop threats here</span>'}
+                </div>` : ''}`;
+            })()}
+            `}
         </div>`;
     }).join('');
 }
@@ -1278,6 +1310,20 @@ function renderDraftCompsRef() {
                     </div>`;
                 }).join('')}
             </div>
+            ${(() => {
+                const threats = comp.threats || [];
+                const isOpen  = openThreats.has(ci);
+                return `<button class="threats-toggle" onclick="toggleThreats(${ci})">
+                    <span class="t-arrow">${isOpen ? '▼' : '▶'}</span>
+                    ☠ Threats ${threats.length ? `<span style="color:#e74c3c">(${threats.length})</span>` : ''}
+                </button>
+                ${isOpen ? `<div class="threats-drop" style="pointer-events:none">
+                    ${threats.map(tid => {
+                        const tc = getChamp(tid);
+                        return tc ? `<div class="threat-champ"><img src="${imgUrl(tc)}" title="${tc.name}"></div>` : '';
+                    }).join('') || '<span style="color:#2a2a2a;font-size:11px">None</span>'}
+                </div>` : ''}`;
+            })()}
         </div>`).join('');
 }
 
@@ -1330,7 +1376,7 @@ function clearBans() {
 
 // ─── Comp Management ─────────────────────────────────────────────────────────
 function addComp() {
-    state.comps.push({ name:`Comp ${state.comps.length+1}`, slots:[[],[],[],[],[],[]], core:[false,false,false,false,false,false] });
+    state.comps.push({ name:`Comp ${state.comps.length+1}`, slots:[[],[],[],[],[],[]], core:[false,false,false,false,false,false], threats:[] });
     renderAllComps(); scheduleSave();
 }
 function deleteComp(idx) {
@@ -1481,6 +1527,30 @@ document.addEventListener('dragend', () => { compDragSrc = null; });
 function toggleCoreRole(ci, ri) {
     if (!state.comps[ci].core) state.comps[ci].core = [false,false,false,false,false,false];
     state.comps[ci].core[ri] = !state.comps[ci].core[ri];
+    renderAllComps();
+    scheduleSave();
+}
+
+function toggleThreats(ci) {
+    if (openThreats.has(ci)) openThreats.delete(ci);
+    else openThreats.add(ci);
+    renderAllComps();
+    renderDraftCompsRef();
+}
+function onDropThreats(e, ci) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    if (!dragData) return;
+    const threats = state.comps[ci].threats || (state.comps[ci].threats = []);
+    if (!threats.includes(dragData.champId)) {
+        threats.push(dragData.champId);
+        renderAllComps();
+        scheduleSave();
+    }
+    dragData = null;
+}
+function removeThreat(ci, champId) {
+    state.comps[ci].threats = (state.comps[ci].threats || []).filter(id => id !== champId);
     renderAllComps();
     scheduleSave();
 }
