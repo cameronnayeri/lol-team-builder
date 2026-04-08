@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Men Who Joust v5</title>
+    <title>Men Who Joust</title>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
     <style>
@@ -22,6 +22,8 @@
         #saveStatus.saved  { color:#2ecc71; }
         #saveStatus.live   { color:#3498db; }
         #saveStatus.error  { color:#e74c3c; }
+        .kofi-btn { background:none; border:1px solid #333; color:#aaa; font-size:11px; font-family:inherit; letter-spacing:1px; padding:5px 12px; border-radius:2px; cursor:pointer; text-decoration:none; transition:border-color .15s,color .15s; white-space:nowrap; }
+        .kofi-btn:hover { border-color:#aaa; color:#fff; }
 
         /* ── Bans bar (builder only) ── */
         .bans-bar { background:#0a0a0a; border-bottom:1px solid #2a2a2a; padding:6px 12px; display:flex; align-items:center; gap:10px; height:60px; flex-shrink:0; }
@@ -176,6 +178,29 @@
         /* ── Tooltip ── */
         .tip { position:absolute; bottom:calc(100% + 3px); left:50%; transform:translateX(-50%); background:#000; border:1px solid #333; color:#e0e0e0; font-size:11px; padding:2px 7px; border-radius:2px; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .1s; z-index:999; }
         .roster-champ:hover .tip { opacity:1; }
+
+        /* ── Member drag-to-reorder ── */
+        .member-drag-handle { cursor:grab; color:#2a2a2a; font-size:13px; padding:0 4px 0 0; user-select:none; flex-shrink:0; line-height:1; align-self:center; }
+        .member-drag-handle:hover { color:#666; }
+        .member-drag-handle:active { cursor:grabbing; }
+        .member-row.member-drag-over { border-color:#555; background:#1a1a1a; }
+
+        /* ── Subs section ── */
+        .subs-section-header { display:flex; align-items:center; gap:5px; padding:6px 2px; border-top:1px solid #2a2a2a; cursor:pointer; user-select:none; flex-shrink:0; margin-top:2px; }
+        .subs-section-title { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:#555; font-weight:700; }
+        .subs-section-arrow { font-size:8px; color:#555; }
+        .subs-section-header:hover .subs-section-title,
+        .subs-section-header:hover .subs-section-arrow { color:#aaa; }
+
+        /* ── Add/delete member ── */
+        .add-member-btn { margin-top:6px; padding:7px 0; background:transparent; border:1px dashed #2a2a2a; border-radius:2px; color:#444; font-size:12px; cursor:pointer; width:100%; transition:border-color .1s,color .1s; flex-shrink:0; font-family:inherit; }
+        .add-member-btn:hover { border-color:#888; color:#e0e0e0; }
+        .member-del-btn { background:none; border:none; color:#333; font-size:14px; cursor:pointer; line-height:1; padding:0 2px; flex-shrink:0; }
+        .member-del-btn:hover { color:#c0392b; }
+
+        /* ── Role select ── */
+        .role-select { background:#1a1a1a; border:1px solid #2a2a2a; color:#555; font-size:11px; font-family:inherit; border-radius:2px; padding:2px 4px; width:100%; cursor:pointer; outline:none; }
+        .role-select:focus { border-color:#555; }
 
         /* ── Loading ── */
         .loading-msg { grid-column:1/-1; text-align:center; color:#333; font-size:12px; padding:20px 0; }
@@ -332,13 +357,17 @@
 </head>
 <body>
 
+
 <header>
-    <h1>Men Who Joust <span style="color:#444;font-weight:400">v5</span></h1>
+    <h1>Men Who Joust</h1>
     <div class="tab-bar">
         <button class="tab-btn active" onclick="switchTab('builder')">Builder</button>
         <button class="tab-btn" onclick="switchTab('draft')">Draft</button>
     </div>
-    <span id="saveStatus">—</span>
+    <div style="display:flex;align-items:center;gap:12px;">
+        <a href="https://ko-fi.com/cameronnayeri" target="_blank" class="kofi-btn">buy me a coffee :)</a>
+        <span id="saveStatus">—</span>
+    </div>
 </header>
 
 <!-- ══ BUILDER TAB ══════════════════════════════════════════════════════════ -->
@@ -372,6 +401,7 @@
                 <span class="tag-legend-item"><span class="tag-dot" style="background:#3498db"></span>Stretch</span>
             </div>
             <div class="members-scroll" id="membersContainer"></div>
+            <button class="add-member-btn" onclick="addMember()">+ Add Player</button>
         </div>
         <div class="resize-handle" id="handle2"></div>
         <div class="panel" id="panelComps">
@@ -609,6 +639,8 @@ let compBadgeTarget   = null; // {ci, ri, champId} for comp badge picker
 let compDragSrc        = null; // index of comp being reordered
 const collapsedComps   = new Set(); // indices of collapsed comp blocks in draft
 const collapsedPools   = new Set(); // indices of collapsed pool rows in draft
+let subsCollapsed  = false;  // collapse state for SUBS section in builder
+let memberDragSrc  = null;   // member index being reordered by drag
 const openThreats      = new Set(); // indices of comps with threats open
 const openPoolThreats  = new Set(); // indices of members with threats open
 
@@ -935,68 +967,97 @@ function renderAllComps() {
 }
 
 // ─── Render: Members ─────────────────────────────────────────────────────────
+function renderMemberRow(m, mi) {
+    const display  = sortedPool(m.pool);
+    const poolHtml = display.length === 0
+        ? '<div class="pool-empty">Drop champions here</div>'
+        : display.map(item => {
+            const c = getChamp(item.id);
+            return c ? `
+                <div class="pool-champ ${isBanned(c.id) ? 'banned' : ''}"
+                     draggable="true" data-id="${c.id}" data-source="pool" data-member="${mi}"
+                     data-tag="${item.tag||''}"
+                     ondragover="onPoolChampDragOver(event,${mi})"
+                     ondragleave="onPoolChampDragLeave(event)"
+                     ondrop="onDropReorder(event,${mi},'${c.id}')"
+                     oncontextmenu="event.preventDefault(); removeFromPool(${mi},'${c.id}')">
+                    <img src="${imgUrl(c)}" alt="${c.name}" title="${c.name}">
+                    <button class="rm-btn" onclick="event.stopPropagation(); removeFromPool(${mi},'${c.id}')">×</button>
+                    ${(item.badges||[]).length ? `<div class="pool-badges">${(item.badges||[]).map(b=>`<span class="pool-badge">${BADGE_ICONS[b]||b}</span>`).join('')}</div>` : ''}
+                    <div class="pool-tag-bar"></div>
+                </div>` : '';
+        }).join('');
+
+    const threats    = m.threats || [];
+    const isOpen     = openPoolThreats.has(mi);
+    const threatHtml = threats.map(tid => {
+        const tc = getChamp(tid);
+        return tc ? `<div class="threat-champ">
+            <img src="${imgUrl(tc)}" title="${tc.name}">
+            <button class="rm-btn" onclick="removePoolThreat(${mi},'${tid}')">×</button>
+        </div>` : '';
+    }).join('');
+
+    const roleOptions = ROLE_VALS.map((rv, ri) =>
+        `<option value="${rv}" ${m.role===rv?'selected':''}>${ROLES[ri]}</option>`
+    ).join('');
+
+    return `
+    <div class="member-row" data-mi="${mi}"
+         ondragover="onMemberRowDragOver(event,${mi})"
+         ondragleave="onMemberRowDragLeave(event)"
+         ondrop="onMemberRowDrop(event,${mi})">
+        <span class="member-drag-handle" draggable="true"
+              ondragstart="onMemberRowDragStart(event,${mi})"
+              ondragend="memberDragSrc=null">⠿</span>
+        <div class="member-meta">
+            <div class="member-name-row">
+                <input class="member-name-input" type="text"
+                       value="${escHtml(m.name)}" placeholder="Player ${mi+1}"
+                       onchange="state.members[${mi}].name = this.value; scheduleSave()">
+                <button class="member-del-btn" onclick="deleteMember(${mi})" title="Remove player">×</button>
+            </div>
+            <select class="role-select"
+                    onchange="state.members[${mi}].role=this.value; renderMembers(); scheduleSave()">
+                ${roleOptions}
+            </select>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:0;">
+            <div class="member-pool"
+                 ondragover="onPoolBgDragOver(event,${mi})"
+                 ondragleave="onDragLeave(event)"
+                 ondrop="onDropPool(event,${mi})">
+                ${poolHtml}
+            </div>
+            <button class="threats-toggle" onclick="togglePoolThreats(${mi})">
+                <span class="t-arrow">${isOpen ? '▼' : '▶'}</span>
+                ☠ Threats ${threats.length ? `<span style="color:#e74c3c">(${threats.length})</span>` : ''}
+            </button>
+            ${isOpen ? `<div class="threats-drop"
+                 ondragover="onDragOver(event)" ondragleave="onDragLeave(event)"
+                 ondrop="onDropPoolThreats(event,${mi})">
+                ${threatHtml || '<span style="color:#2a2a2a;font-size:11px">Drop threats here</span>'}
+            </div>` : ''}
+        </div>
+    </div>`;
+}
+
 function renderMembers() {
     const container = document.getElementById('membersContainer');
-    container.innerHTML = state.members.map((m, mi) => {
-        const display  = sortedPool(m.pool);
-        const poolHtml = display.length === 0
-            ? '<div class="pool-empty">Drop champions here</div>'
-            : display.map(item => {
-                const c = getChamp(item.id);
-                return c ? `
-                    <div class="pool-champ ${isBanned(c.id) ? 'banned' : ''}"
-                         draggable="true" data-id="${c.id}" data-source="pool" data-member="${mi}"
-                         data-tag="${item.tag||''}"
-                         ondragover="onPoolChampDragOver(event,${mi})"
-                         ondragleave="onPoolChampDragLeave(event)"
-                         ondrop="onDropReorder(event,${mi},'${c.id}')"
-                         oncontextmenu="event.preventDefault(); removeFromPool(${mi},'${c.id}')">
-                        <img src="${imgUrl(c)}" alt="${c.name}" title="${c.name}">
-                        <button class="rm-btn" onclick="event.stopPropagation(); removeFromPool(${mi},'${c.id}')">×</button>
-                        ${(item.badges||[]).length ? `<div class="pool-badges">${(item.badges||[]).map(b=>`<span class="pool-badge">${BADGE_ICONS[b]||b}</span>`).join('')}</div>` : ''}
-                        <div class="pool-tag-bar"></div>
-                    </div>` : '';
-            }).join('');
-        return `
-        <div class="member-row">
-            <div class="member-meta">
-                <div class="member-name-row">
-                    <input class="member-name-input" type="text"
-                           value="${escHtml(m.name)}" placeholder="Player ${mi+1}"
-                           onchange="state.members[${mi}].name = this.value; scheduleSave()">
-                </div>
-                <div class="role-label-static">${getRoleDisplay(m.role)}</div>
-            </div>
-            <div style="flex:1;display:flex;flex-direction:column;gap:0;">
-                <div class="member-pool"
-                     ondragover="onPoolBgDragOver(event,${mi})"
-                     ondragleave="onDragLeave(event)"
-                     ondrop="onDropPool(event,${mi})">
-                    ${poolHtml}
-                </div>
-                ${(() => {
-                    const threats    = m.threats || [];
-                    const isOpen     = openPoolThreats.has(mi);
-                    const threatHtml = threats.map(tid => {
-                        const tc = getChamp(tid);
-                        return tc ? `<div class="threat-champ">
-                            <img src="${imgUrl(tc)}" title="${tc.name}">
-                            <button class="rm-btn" onclick="removePoolThreat(${mi},'${tid}')">×</button>
-                        </div>` : '';
-                    }).join('');
-                    return `<button class="threats-toggle" onclick="togglePoolThreats(${mi})">
-                        <span class="t-arrow">${isOpen ? '▼' : '▶'}</span>
-                        ☠ Threats ${threats.length ? `<span style="color:#e74c3c">(${threats.length})</span>` : ''}
-                    </button>
-                    ${isOpen ? `<div class="threats-drop"
-                         ondragover="onDragOver(event)" ondragleave="onDragLeave(event)"
-                         ondrop="onDropPoolThreats(event,${mi})">
-                        ${threatHtml || '<span style="color:#2a2a2a;font-size:11px">Drop threats here</span>'}
-                    </div>` : ''}`;
-                })()}
-            </div>
-        </div>`;
-    }).join('');
+
+    const mainEntries = state.members.map((m, mi) => ({ m, mi })).filter(({m}) => m.role !== 'sub');
+    const subEntries  = state.members.map((m, mi) => ({ m, mi })).filter(({m}) => m.role === 'sub');
+
+    const mainHtml = mainEntries.map(({m, mi}) => renderMemberRow(m, mi)).join('');
+    const subsHtml = subEntries.map(({m, mi}) => renderMemberRow(m, mi)).join('');
+
+    container.innerHTML = mainHtml + `
+    <div class="subs-section-header" onclick="toggleSubsSection()">
+        <span class="subs-section-arrow">${subsCollapsed ? '▶' : '▼'}</span>
+        <span class="subs-section-title">Subs</span>
+        ${subEntries.length ? `<span style="color:#444;font-size:10px">(${subEntries.length})</span>` : ''}
+    </div>
+    ${subsCollapsed ? '' : subsHtml}`;
 
     container.querySelectorAll('.pool-champ').forEach(el => {
         el.addEventListener('dragstart', onDragStart);
@@ -1005,6 +1066,58 @@ function renderMembers() {
             openTagPicker(e, +this.dataset.member, this.dataset.id);
         });
     });
+}
+
+function toggleSubsSection() {
+    subsCollapsed = !subsCollapsed;
+    renderMembers();
+}
+
+function addMember() {
+    const subCount = state.members.filter(m => m.role === 'sub').length;
+    state.members.push({ name: 'Sub ' + (subCount + 1), role: 'sub', pool: [], emoji: '' });
+    subsCollapsed = false;
+    renderMembers();
+    scheduleSave();
+}
+
+function deleteMember(mi) {
+    if (!confirm('Remove "' + state.members[mi].name + '" from the roster?')) return;
+    state.members.splice(mi, 1);
+    renderMembers();
+    scheduleSave();
+}
+
+function onMemberRowDragStart(e, mi) {
+    memberDragSrc = mi;
+    dragData = null;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', 'member:' + mi);
+    e.stopPropagation();
+}
+
+function onMemberRowDragOver(e, mi) {
+    if (memberDragSrc === null || memberDragSrc === mi) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    e.currentTarget.classList.add('member-drag-over');
+}
+
+function onMemberRowDragLeave(e) {
+    e.currentTarget.classList.remove('member-drag-over');
+}
+
+function onMemberRowDrop(e, mi) {
+    e.currentTarget.classList.remove('member-drag-over');
+    if (memberDragSrc === null || memberDragSrc === mi) { memberDragSrc = null; return; }
+    e.stopPropagation();
+    const [m] = state.members.splice(memberDragSrc, 1);
+    const insertAt = memberDragSrc < mi ? mi - 1 : mi;
+    state.members.splice(insertAt, 0, m);
+    memberDragSrc = null;
+    renderMembers();
+    scheduleSave();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
