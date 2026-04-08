@@ -534,9 +534,10 @@
 
 <!-- Floating tag picker -->
 <div id="compBadgePicker">
-    <button class="badge-opt" id="cbBlind"   onclick="toggleCompBadge('blind')"   title="Blind Pick">👁</button>
-    <button class="badge-opt" id="cbComfort" onclick="toggleCompBadge('comfort')" title="Comfort">🔥</button>
-    <button class="badge-opt" id="cbStar"    onclick="toggleCompBadge('star')"    title="Star">⭐</button>
+    <button class="badge-opt" id="cbBlind"    onclick="toggleCompBadge('blind')"    title="Blind Pick">👁</button>
+    <button class="badge-opt" id="cbComfort"  onclick="toggleCompBadge('comfort')"  title="Comfort">🔥</button>
+    <button class="badge-opt" id="cbStar"     onclick="toggleCompBadge('star')"     title="Star">⭐</button>
+    <button class="badge-opt" id="cbLearning" onclick="toggleCompBadge('learning')" title="Learning">📈</button>
 </div>
 
 <div id="tagPicker">
@@ -547,9 +548,10 @@
     <button class="tag-opt" style="background:#2ecc71" onclick="setTag('questionable')" title="Questionable"></button>
     <button class="tag-opt" style="background:#3498db" onclick="setTag('stretch')"      title="Stretch"></button>
     <div class="tag-picker-sep"></div>
-    <button class="badge-opt" id="badgeBlind"   onclick="toggleBadge('blind')"   title="Blind Pick">👁</button>
-    <button class="badge-opt" id="badgeComfort" onclick="toggleBadge('comfort')" title="Comfort">🔥</button>
-    <button class="badge-opt" id="badgeStar"    onclick="toggleBadge('star')"    title="Star">⭐</button>
+    <button class="badge-opt" id="badgeBlind"    onclick="toggleBadge('blind')"    title="Blind Pick">👁</button>
+    <button class="badge-opt" id="badgeComfort"  onclick="toggleBadge('comfort')"  title="Comfort">🔥</button>
+    <button class="badge-opt" id="badgeStar"     onclick="toggleBadge('star')"     title="Star">⭐</button>
+    <button class="badge-opt" id="badgeLearning" onclick="toggleBadge('learning')" title="Learning">📈</button>
 </div>
 
 <script>
@@ -1801,7 +1803,7 @@ function renderDraftCompsRef() {
 }
 
 // ─── Tag Picker ───────────────────────────────────────────────────────────────
-const BADGE_ICONS = { blind:'👁', comfort:'🔥', star:'⭐' };
+const BADGE_ICONS = { blind:'👁', comfort:'🔥', star:'⭐', learning:'📈' };
 
 function openTagPicker(e, memberIdx, champId) {
     e.stopPropagation();
@@ -1817,9 +1819,10 @@ function updateBadgePickerState() {
     if (!tagPickerTarget) return;
     const item   = state.members[tagPickerTarget.memberIdx].pool.find(p => p.id === tagPickerTarget.champId);
     const badges = item?.badges || [];
-    document.getElementById('badgeBlind').classList.toggle('active',   badges.includes('blind'));
-    document.getElementById('badgeComfort').classList.toggle('active', badges.includes('comfort'));
-    document.getElementById('badgeStar').classList.toggle('active',    badges.includes('star'));
+    document.getElementById('badgeBlind').classList.toggle('active',    badges.includes('blind'));
+    document.getElementById('badgeComfort').classList.toggle('active',  badges.includes('comfort'));
+    document.getElementById('badgeStar').classList.toggle('active',     badges.includes('star'));
+    document.getElementById('badgeLearning').classList.toggle('active', badges.includes('learning'));
 }
 function toggleBadge(badge) {
     if (!tagPickerTarget) return;
@@ -1850,9 +1853,10 @@ function updateCompBadgePickerState() {
     const { ci, ri, champId } = compBadgeTarget;
     const key    = `${ri}:${champId}`;
     const badges = (state.comps[ci].champBadges || {})[key] || [];
-    document.getElementById('cbBlind').classList.toggle('active',   badges.includes('blind'));
-    document.getElementById('cbComfort').classList.toggle('active', badges.includes('comfort'));
-    document.getElementById('cbStar').classList.toggle('active',    badges.includes('star'));
+    document.getElementById('cbBlind').classList.toggle('active',    badges.includes('blind'));
+    document.getElementById('cbComfort').classList.toggle('active',  badges.includes('comfort'));
+    document.getElementById('cbStar').classList.toggle('active',     badges.includes('star'));
+    document.getElementById('cbLearning').classList.toggle('active', badges.includes('learning'));
 }
 function toggleCompBadge(badge) {
     if (!compBadgeTarget) return;
