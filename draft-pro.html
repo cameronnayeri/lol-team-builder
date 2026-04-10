@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MWJ Draft Pro</title>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #111; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; height: 100vh; overflow: hidden; font-size: 13px; }
+
+        /* ── Header ── */
+        header {
+            background: #000; border-bottom: 1px solid #222;
+            height: 44px; display: flex; align-items: center; padding: 0 10px; gap: 6px; flex-shrink: 0;
+        }
+        .logo { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; font-weight: 700; color: #fff; white-space: nowrap; margin-right: 4px; }
+        .hsep { width: 1px; background: #222; height: 20px; flex-shrink: 0; margin: 0 2px; }
+        .hinput { background: #1a1a1a; border: 1px solid #2a2a2a; color: #e0e0e0; font-size: 11px; font-family: inherit; padding: 4px 8px; border-radius: 2px; outline: none; }
+        .hinput:focus { border-color: #555; }
+        .hinput::placeholder { color: #444; }
+        .hselect { background: #1a1a1a; border: 1px solid #2a2a2a; color: #aaa; font-size: 11px; font-family: inherit; padding: 4px 6px; border-radius: 2px; outline: none; cursor: pointer; }
+        .hbtn { background: none; border: 1px solid #2a2a2a; color: #555; font-size: 10px; font-family: inherit; letter-spacing: .5px; padding: 4px 10px; border-radius: 2px; cursor: pointer; transition: all .1s; white-space: nowrap; }
+        .hbtn:hover { border-color: #888; color: #fff; }
+        .hbtn.primary { border-color: #c89b3c; color: #c89b3c; }
+        .hbtn.primary:hover { background: #c89b3c22; color: #f0c060; }
+        .hbtn.danger { border-color: #3a1a1a; color: #884444; }
+        .hbtn.danger:hover { border-color: #c0392b; color: #e74c3c; }
+        .hbtn:disabled { opacity: .3; pointer-events: none; }
+        .game-tabs { display: flex; gap: 2px; }
+        .gtab { background: none; border: 1px solid #2a2a2a; color: #444; font-size: 10px; font-weight: 700; padding: 4px 9px; border-radius: 2px; cursor: pointer; transition: all .1s; letter-spacing: .5px; }
+        .gtab:hover { border-color: #666; color: #aaa; }
+        .gtab.active { border-color: #888; color: #fff; background: #1a1a1a; }
+        .gtab.past { color: #3a3a3a; }
+        .hspacer { flex: 1; }
+        .hscore { font-size: 11px; font-weight: 700; color: #555; letter-spacing: 2px; }
+        #saveStatus { font-size: 11px; color: #444; margin-left: 4px; }
+        #saveStatus.saving { color: #888; }
+        #saveStatus.saved  { color: #2ecc71; }
+        #saveStatus.live   { color: #3498db; }
+        #saveStatus.error  { color: #e74c3c; }
+
+        /* ── Main Layout ── */
+        .main { display: flex; height: calc(100vh - 44px); overflow: hidden; position: relative; }
+
+        /* ── Side Panels ── */
+        .side { width: 172px; flex-shrink: 0; display: flex; flex-direction: column; overflow: hidden; }
+        .side.blue { border-right: 1px solid #1a1a1a; }
+        .side.red  { border-left:  1px solid #1a1a1a; }
+
+        .side-hdr {
+            padding: 7px 10px 6px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+            font-weight: 700; flex-shrink: 0; border-bottom: 1px solid #1a1a1a;
+        }
+        .side-hdr.blue { color: #4e9eff; background: #060c15; }
+        .side-hdr.red  { color: #ff5555; background: #150606; }
+
+        /* Bans */
+        .bans-wrap { padding: 6px 8px 6px; flex-shrink: 0; border-bottom: 1px solid #1a1a1a; }
+        .sec-lbl { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: #444; font-weight: 700; margin-bottom: 4px; }
+        .bans-row { display: flex; gap: 3px; }
+        .ban-slot {
+            width: 28px; height: 28px; border: 1px solid #222; border-radius: 2px;
+            background: #0d0d0d; display: flex; align-items: center; justify-content: center;
+            font-size: 11px; color: #222; overflow: hidden; cursor: pointer; transition: border-color .1s; flex-shrink: 0; position: relative;
+        }
+        .ban-slot img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(60%) brightness(.65); display: block; }
+        .ban-slot.blue-active { border-color: #4e9eff; box-shadow: 0 0 8px #4e9eff66; animation: pb .8s ease-in-out infinite alternate; }
+        .ban-slot.red-active  { border-color: #ff5555; box-shadow: 0 0 8px #ff555566; animation: pr .8s ease-in-out infinite alternate; }
+        .ban-slot.preview img { opacity: .4; }
+        .ban-slot.preview { border-style: dashed !important; }
+
+        /* Picks */
+        .picks-lbl-row { padding: 5px 8px 2px; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: #444; font-weight: 700; flex-shrink: 0; }
+        .picks-col { display: flex; flex-direction: column; gap: 3px; padding: 0 8px 6px; overflow-y: auto; }
+        .picks-col::-webkit-scrollbar { width: 3px; }
+        .picks-col::-webkit-scrollbar-thumb { background: #2a2a2a; }
+
+        .pick-slot {
+            display: flex; align-items: center; border: 1px solid #1a1a1a; border-radius: 2px;
+            background: #0d0d0d; height: 50px; overflow: hidden; cursor: pointer;
+            transition: border-color .1s; flex-shrink: 0; position: relative;
+        }
+        .pick-slot.blue-active { border-color: #4e9eff; box-shadow: 0 0 10px #4e9eff55; animation: pb .8s ease-in-out infinite alternate; }
+        .pick-slot.red-active  { border-color: #ff5555; box-shadow: 0 0 10px #ff555555; animation: pr .8s ease-in-out infinite alternate; }
+        .pick-slot.preview { border-style: dashed !important; }
+        .pick-slot.preview .ps-img { opacity: .4; }
+        .pick-slot.fearless .ps-img { filter: grayscale(100%) brightness(.35); }
+        .ps-img { width: 50px; height: 50px; object-fit: cover; flex-shrink: 0; display: block; }
+        .ps-info { flex: 1; min-width: 0; padding: 0 6px; }
+        .ps-name { font-size: 11px; font-weight: 600; color: #e0e0e0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ps-num  { font-size: 9px; color: #333; letter-spacing: .5px; }
+
+        @keyframes pb { from { box-shadow: 0 0 4px #4e9eff44; } to { box-shadow: 0 0 14px #4e9effaa; } }
+        @keyframes pr { from { box-shadow: 0 0 4px #ff555544; } to { box-shadow: 0 0 14px #ff5555aa; } }
+
+        /* Counter picks */
+        .counter-wrap { border-top: 1px solid #1a1a1a; padding: 6px 8px; flex-shrink: 0; }
+        .counter-champs { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+        .ctr-champ { width: 30px; height: 30px; border-radius: 2px; overflow: hidden; cursor: pointer; border: 1px solid #2a2a2a; flex-shrink: 0; }
+        .ctr-champ img { width: 100%; height: 100%; object-fit: cover; transition: filter .1s; }
+        .ctr-champ:hover img { filter: brightness(1.2); }
+        .ctr-champ.staged { border-color: #c89b3c; }
+        .ctr-champ.staged img { box-shadow: 0 0 5px #c89b3c88; }
+
+        /* ── Center ── */
+        .center { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 360px; }
+
+        .filter-bar {
+            display: flex; align-items: center; gap: 5px; padding: 5px 8px;
+            border-bottom: 1px solid #1a1a1a; background: #090909; flex-shrink: 0;
+        }
+        .fsearch { background: #1a1a1a; border: 1px solid #2a2a2a; color: #e0e0e0; font-size: 11px; font-family: inherit; padding: 5px 9px; border-radius: 2px; outline: none; width: 130px; }
+        .fsearch:focus { border-color: #555; }
+        .fsearch::placeholder { color: #444; }
+        .rtabs { display: flex; gap: 2px; }
+        .rtab { background: none; border: 1px solid #2a2a2a; color: #555; font-size: 10px; letter-spacing: .5px; font-weight: 700; padding: 4px 9px; border-radius: 2px; cursor: pointer; transition: all .1s; }
+        .rtab:hover { border-color: #666; color: #aaa; }
+        .rtab.active { border-color: #888; color: #fff; background: #1a1a1a; }
+        .fspacer { flex: 1; }
+        .vtabs { display: flex; gap: 2px; }
+        .vtab { background: none; border: 1px solid #2a2a2a; color: #555; font-size: 10px; letter-spacing: .5px; font-weight: 700; padding: 4px 9px; border-radius: 2px; cursor: pointer; transition: all .1s; }
+        .vtab:hover { border-color: #666; color: #aaa; }
+        .vtab.active { border-color: #888; color: #fff; background: #1a1a1a; }
+
+        /* Pool / All view */
+        .pool-view { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .pool-lbl { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: #333; font-weight: 700; padding: 4px 10px 2px; flex-shrink: 0; }
+        .champ-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+            gap: 2px; overflow-y: auto; flex: 1; padding: 0 8px 8px; align-content: start;
+        }
+        .champ-grid::-webkit-scrollbar { width: 4px; }
+        .champ-grid::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+        .gc { position: relative; cursor: pointer; border-radius: 2px; }
+        .gc img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; border: 1px solid #1e1e1e; border-radius: 2px; transition: border-color .1s, filter .1s; }
+        .gc:hover:not(.off) img { border-color: #888; filter: brightness(1.2); }
+        .gc.off img { filter: grayscale(100%) brightness(.22); opacity: .5; }
+        .gc.off { pointer-events: none; }
+        .gc.staged img { border-color: #c89b3c !important; box-shadow: 0 0 6px #c89b3c88; }
+        .gc[data-tag="best"]         img { border-color: #e74c3c; }
+        .gc[data-tag="great"]        img { border-color: #e67e22; }
+        .gc[data-tag="decent"]       img { border-color: #d4ac0d; }
+        .gc[data-tag="questionable"] img { border-color: #2ecc71; }
+        .gc[data-tag="stretch"]      img { border-color: #3498db; }
+        .gc .tip {
+            position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%);
+            background: #000; border: 1px solid #333; color: #e0e0e0; font-size: 10px; padding: 2px 7px;
+            border-radius: 2px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .1s; z-index: 999;
+        }
+        .gc:hover .tip { opacity: 1; }
+
+        /* Tier list */
+        .tier-view { flex: 1; overflow-y: auto; padding: 8px; display: none; }
+        .tier-view::-webkit-scrollbar { width: 4px; }
+        .tier-view::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+        .tier-grid { display: grid; border: 1px solid #1e1e1e; border-radius: 3px; overflow: hidden; }
+        .tg-hdr { background: #0d0d0d; border-bottom: 1px solid #1e1e1e; padding: 6px 4px; text-align: center; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700; }
+        .tg-hdr.lbl { color: #333; border-right: 1px solid #1e1e1e; }
+        .tg-hdr.top { color: #e74c3c; } .tg-hdr.jgl { color: #2ecc71; }
+        .tg-hdr.mid { color: #3498db; } .tg-hdr.adc { color: #e67e22; } .tg-hdr.sup { color: #9b59b6; }
+        .tg-lbl { background: #0a0a0a; border-bottom: 1px solid #1a1a1a; border-right: 1px solid #1e1e1e; padding: 6px 4px; display: flex; align-items: center; justify-content: center; }
+        .tg-lbl-txt { font-size: 11px; font-weight: 700; letter-spacing: 2px; writing-mode: vertical-lr; rotate: 180deg; }
+        .tg-lbl-txt.t1 { color: #e74c3c; } .tg-lbl-txt.t2 { color: #e67e22; }
+        .tg-lbl-txt.t3 { color: #d4ac0d; } .tg-lbl-txt.od { color: #3498db; }
+        .tg-cell { background: #0d0d0d; border-bottom: 1px solid #1a1a1a; border-left: 1px solid #1a1a1a; padding: 5px; display: flex; flex-wrap: wrap; gap: 3px; min-height: 54px; align-content: flex-start; }
+        .tc { position: relative; width: 40px; cursor: pointer; }
+        .tc img { width: 40px; height: 40px; object-fit: cover; border-radius: 2px; border: 1px solid #2a2a2a; display: block; transition: filter .1s, border-color .1s; }
+        .tc:hover:not(.off) img { filter: brightness(1.2); border-color: #888; }
+        .tc.off img { filter: grayscale(100%) brightness(.22); opacity: .4; }
+        .tc.off { pointer-events: none; }
+        .tc.staged img { border-color: #c89b3c !important; box-shadow: 0 0 6px #c89b3c88; }
+        .tc .tip { position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%); background: #000; border: 1px solid #333; color: #e0e0e0; font-size: 10px; padding: 2px 7px; border-radius: 2px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .1s; z-index: 999; }
+        .tc:hover .tip { opacity: 1; }
+
+        /* ── Notes Panel ── */
+        .notes-panel { width: 175px; flex-shrink: 0; display: flex; flex-direction: column; border-left: 1px solid #1a1a1a; overflow: hidden; }
+        .notes-gtabs { display: flex; flex-shrink: 0; border-bottom: 1px solid #1a1a1a; }
+        .ngtab { flex: 1; background: none; border: none; border-right: 1px solid #1a1a1a; color: #444; font-size: 10px; font-family: inherit; font-weight: 700; padding: 6px 2px; cursor: pointer; transition: all .1s; }
+        .ngtab:last-child { border-right: none; }
+        .ngtab:hover { color: #aaa; background: #111; }
+        .ngtab.active { color: #fff; background: #1a1a1a; }
+        .notes-area { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+        .notes-ta { flex: 1; background: #0a0a0a; border: none; color: #ccc; font-size: 11px; font-family: 'Segoe UI', sans-serif; padding: 8px; resize: none; outline: none; line-height: 1.6; }
+        .notes-ta::placeholder { color: #2a2a2a; }
+        .fearless-wrap { padding: 5px 8px; border-top: 1px solid #1a1a1a; flex-shrink: 0; }
+        .fearless-chips { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 3px; }
+        .fc { width: 22px; height: 22px; border-radius: 2px; overflow: hidden; border: 1px solid #1a1a1a; }
+        .fc img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(80%) brightness(.5); }
+        .notes-score { padding: 5px 8px; border-top: 1px solid #1a1a1a; font-size: 10px; color: #444; text-align: center; flex-shrink: 0; letter-spacing: 1px; }
+
+        /* ── Setup Overlay ── */
+        .setup-overlay {
+            position: absolute; inset: 0; background: rgba(0,0,0,.88); z-index: 100;
+            display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 24px;
+        }
+        .setup-overlay h2 { font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #666; }
+        .fmt-btns { display: flex; gap: 12px; }
+        .fmt-btn { background: #1a1a1a; border: 1px solid #333; color: #aaa; font-size: 13px; font-weight: 700; padding: 14px 28px; border-radius: 3px; cursor: pointer; letter-spacing: 1px; transition: border-color .15s, color .15s, background .15s; }
+        .fmt-btn:hover { border-color: #888; color: #fff; background: #222; }
+
+        /* ── Winner Modal ── */
+        .winner-ov { position: fixed; inset: 0; background: rgba(0,0,0,.78); z-index: 500; display: flex; align-items: center; justify-content: center; }
+        .winner-box { background: #1a1a1a; border: 1px solid #333; border-radius: 4px; padding: 28px 36px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+        .winner-box h3 { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: #aaa; }
+        .winner-btns { display: flex; gap: 12px; }
+        .wbtn { background: #111; border: 1px solid #444; color: #ccc; font-size: 13px; font-weight: 700; padding: 10px 24px; border-radius: 3px; cursor: pointer; transition: border-color .15s, color .15s; }
+        .wbtn:hover { border-color: #fff; color: #fff; }
+        .wbtn.home:hover { border-color: #4e9eff; color: #4e9eff; }
+        .wbtn.away:hover { border-color: #ff5555; color: #ff5555; }
+
+        /* ── Turn indicator strip ── */
+        .turn-strip { padding: 5px 10px; border-bottom: 1px solid #1a1a1a; background: #080808; flex-shrink: 0; display: flex; align-items: center; gap: 8px; font-size: 11px; color: #555; }
+        .turn-strip .turn-action { font-weight: 700; }
+
+        /* Lock-in bar */
+        .lockin-bar { padding: 6px 10px; border-bottom: 1px solid #1a1a1a; background: #0d0d0d; flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+        .lockin-name { font-size: 13px; font-weight: 700; color: #c89b3c; letter-spacing: 1px; text-transform: uppercase; flex: 1; }
+        .lockin-btn { background: #c89b3c22; border: 1px solid #c89b3c; color: #f0c060; font-size: 11px; font-family: inherit; font-weight: 700; letter-spacing: 2px; padding: 5px 16px; border-radius: 2px; cursor: pointer; transition: background .15s; }
+        .lockin-btn:hover { background: #c89b3c44; }
+        .cancel-btn { background: none; border: 1px solid #2a2a2a; color: #555; font-size: 10px; font-family: inherit; padding: 5px 10px; border-radius: 2px; cursor: pointer; transition: all .1s; }
+        .cancel-btn:hover { border-color: #888; color: #aaa; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">MWJ</div>
+    <div class="hsep"></div>
+    <input class="hinput" id="opponentInput" placeholder="Opponent…" style="width:110px">
+    <select class="hselect" id="sideSelect">
+        <option value="blue">Blue Side</option>
+        <option value="red">Red Side</option>
+    </select>
+    <select class="hselect" id="formatSelect">
+        <option value="scrim">Scrim</option>
+        <option value="officials">Officials</option>
+        <option value="practice">Practice</option>
+    </select>
+    <input class="hinput" id="dateInput" type="date" style="width:128px">
+    <div class="hsep"></div>
+    <div class="game-tabs" id="gameTabs"></div>
+    <div class="hsep"></div>
+    <button class="hbtn" onclick="draftUndo()" id="undoBtn">↩ Undo</button>
+    <button class="hbtn" onclick="flipSides()" id="flipBtn">⇄ Flip</button>
+    <button class="hbtn primary" id="gameStartBtn" onclick="commitGame()" disabled>Game Start</button>
+    <button class="hbtn danger" onclick="endSeries()">End Series</button>
+    <div class="hspacer"></div>
+    <span class="hscore" id="headerScore"></span>
+    <span id="saveStatus">—</span>
+</header>
+
+<div class="main" id="mainWrap">
+
+    <!-- BLUE SIDE -->
+    <div class="side blue">
+        <div class="side-hdr blue" id="blueHdr">BLUE SIDE</div>
+        <div class="bans-wrap">
+            <div class="sec-lbl">BANS</div>
+            <div class="bans-row" id="blueBans"></div>
+        </div>
+        <div class="picks-lbl-row">PICKS</div>
+        <div class="picks-col" id="bluePicks"></div>
+        <div class="counter-wrap">
+            <div class="sec-lbl">ACTIVE COUNTER-PICKS</div>
+            <div id="counterContent"><span style="font-size:10px;color:#2a2a2a">—</span></div>
+        </div>
+    </div>
+
+    <!-- CENTER -->
+    <div class="center">
+        <div class="filter-bar">
+            <input class="fsearch" id="champSearch" placeholder="Search…" oninput="renderChampGrid(); renderTierList()">
+            <div class="rtabs">
+                <button class="rtab active" data-role="all"     onclick="setRole('all',this)">All</button>
+                <button class="rtab"        data-role="top"     onclick="setRole('top',this)">TOP</button>
+                <button class="rtab"        data-role="jungle"  onclick="setRole('jungle',this)">JGL</button>
+                <button class="rtab"        data-role="mid"     onclick="setRole('mid',this)">MID</button>
+                <button class="rtab"        data-role="bot"     onclick="setRole('bot',this)">ADC</button>
+                <button class="rtab"        data-role="support" onclick="setRole('support',this)">SUP</button>
+            </div>
+            <div class="fspacer"></div>
+            <div class="vtabs">
+                <button class="vtab active" id="vtPool"     onclick="setView('pool')">Pool</button>
+                <button class="vtab"        id="vtAll"      onclick="setView('all')">All</button>
+                <button class="vtab"        id="vtTierList" onclick="setView('tierlist')">Tier List</button>
+            </div>
+        </div>
+
+        <!-- Turn strip -->
+        <div class="turn-strip" id="turnStrip" style="display:none"></div>
+
+        <!-- Lock-in bar -->
+        <div class="lockin-bar" id="lockinBar" style="display:none">
+            <div class="lockin-name" id="lockinName">—</div>
+            <button class="cancel-btn" onclick="cancelStage()">Cancel</button>
+            <button class="lockin-btn" onclick="draftCommit()">LOCK IN</button>
+        </div>
+
+        <!-- Pool / All grid -->
+        <div class="pool-view" id="poolView">
+            <div class="pool-lbl" id="poolLbl">CHAMPION POOL</div>
+            <div class="champ-grid" id="champGrid"></div>
+        </div>
+
+        <!-- Tier list -->
+        <div class="tier-view" id="tierView"></div>
+    </div>
+
+    <!-- RED SIDE -->
+    <div class="side red">
+        <div class="side-hdr red" id="redHdr">RED SIDE</div>
+        <div class="bans-wrap">
+            <div class="sec-lbl">BANS</div>
+            <div class="bans-row" id="redBans"></div>
+        </div>
+        <div class="picks-lbl-row">PICKS</div>
+        <div class="picks-col" id="redPicks"></div>
+    </div>
+
+    <!-- NOTES -->
+    <div class="notes-panel">
+        <div class="notes-gtabs" id="notesGTabs"></div>
+        <div class="notes-area">
+            <textarea class="notes-ta" id="notesTA" placeholder="Notes…"></textarea>
+        </div>
+        <div class="fearless-wrap" id="fearlessWrap" style="display:none">
+            <div class="sec-lbl">FEARLESS</div>
+            <div class="fearless-chips" id="fearlessChips"></div>
+        </div>
+        <div class="notes-score" id="notesScore">—</div>
+    </div>
+
+    <!-- Setup overlay -->
+    <div class="setup-overlay" id="setupOverlay">
+        <h2>Start a Series</h2>
+        <div class="fmt-btns">
+            <button class="fmt-btn" onclick="startSeries(1)">BO1</button>
+            <button class="fmt-btn" onclick="startSeries(3)">BO3</button>
+            <button class="fmt-btn" onclick="startSeries(5)">BO5</button>
+            <button class="fmt-btn" onclick="startSeries(7)">BO7</button>
+        </div>
+    </div>
+</div>
+
+<!-- Winner modal -->
+<div class="winner-ov" id="winnerOv" style="display:none">
+    <div class="winner-box">
+        <h3 id="winnerLabel">Game 1 — Who Won?</h3>
+        <div class="winner-btns">
+            <button class="wbtn home" onclick="recordWinner('home')">HOME</button>
+            <button class="wbtn away" onclick="recordWinner('away')">AWAY</button>
+            <button class="wbtn"      onclick="recordWinner(null)">Skip</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── Firebase ──────────────────────────────────────────────────────────────────
+const firebaseConfig = {
+    apiKey:            "AIzaSyDeZ0kU9w_C4b1a0j1kkXN8NRSrNkON17U",
+    authDomain:        "league-team-22547.firebaseapp.com",
+    projectId:         "league-team-22547",
+    storageBucket:     "league-team-22547.firebasestorage.app",
+    messagingSenderId: "678648881940",
+    appId:             "1:678648881940:web:e3fbd81cc7ecf163191801"
+};
+firebase.initializeApp(firebaseConfig);
+const db  = firebase.firestore();
+const DOC = db.collection('teambuilder').doc('data');
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const ROLE_VALS  = ['top','jungle','mid','bot','support'];
+const TAG_ORDER  = { best:0, great:1, decent:2, questionable:3, stretch:4, '':5 };
+const TIER_MAP   = { 1:['best','great'], 2:['decent'], 3:['questionable'], 4:['stretch',''] };
+
+const DRAFT_SEQ = [
+    {t:'blue',a:'ban'},{t:'red',a:'ban'},{t:'blue',a:'ban'},{t:'red',a:'ban'},
+    {t:'blue',a:'ban'},{t:'red',a:'ban'},
+    {t:'blue',a:'pick'},{t:'red',a:'pick'},{t:'red',a:'pick'},{t:'blue',a:'pick'},
+    {t:'blue',a:'pick'},{t:'red',a:'pick'},
+    {t:'red',a:'ban'},{t:'blue',a:'ban'},{t:'red',a:'ban'},{t:'blue',a:'ban'},
+    {t:'red',a:'pick'},{t:'blue',a:'pick'},{t:'blue',a:'pick'},{t:'red',a:'pick'},
+];
+const BLUE_BAN_SLOTS  = [0,2,4,13,15];
+const BLUE_PICK_SLOTS = [6,9,10,17,18];
+const RED_BAN_SLOTS   = [1,3,5,12,14];
+const RED_PICK_SLOTS  = [7,8,11,16,19];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+const state = { version: null, champions: [], bans: [], comps: [], members: [] };
+const draft = {
+    active: false, format: 3, currentGame: 1, blueSide: 'home',
+    fearless: [], games: [], slots: Array(20).fill(null), cursor: 0,
+};
+let gameNotes    = {};   // { gameNum: noteString }
+let opponent     = '';
+let seriesFormat = 'scrim';
+let seriesDate   = '';
+let activeNoteGame = 1;
+
+// UI state
+let draftStaged  = null;  // champId staged for lock-in (click once to stage, click Lock In to commit)
+let hoverPreview = null;  // transient hover preview in active slot
+let currentView  = 'pool';
+let roleFilter   = 'all';
+let saveTimer    = null;
+let lastSavedJSON = '';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function getChamp(id)  { return state.champions.find(c => c.id === id); }
+function imgUrl(c)     { return `https://ddragon.leagueoflegends.com/cdn/${state.version}/img/champion/${c.image}`; }
+function esc(s)        { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function sortedPool(p) { return [...p].sort((a,b)=>(TAG_ORDER[a.tag||'']??5)-(TAG_ORDER[b.tag||'']??5)); }
+
+function unavailable() {
+    const s = new Set();
+    draft.slots.forEach(id => id && s.add(id));
+    draft.fearless.forEach(id => s.add(id));
+    return s;
+}
+
+// ── Firebase ─────────────────────────────────────────────────────────────────
+function applyRecord(data) {
+    if (data.members?.length) state.members = data.members;
+    if (data.comps?.length)   state.comps   = data.comps.map(c => ({
+        ...c,
+        slots: Array.isArray(c.slots) ? c.slots : Array.from({length:6},(_,i)=>c.slots?.[i]||[]),
+        core: c.core ?? [false,false,false,false,false,false],
+        threats: c.threats ?? [], champBadges: c.champBadges ?? {},
+    }));
+    state.bans = data.bans || [];
+    if (data.draft) {
+        const d = data.draft;
+        draft.active      = d.active      ?? false;
+        draft.format      = d.format      ?? 3;
+        draft.currentGame = d.currentGame ?? 1;
+        draft.blueSide    = d.blueSide    ?? 'home';
+        draft.fearless    = d.fearless    ?? [];
+        draft.games       = d.games       ?? [];
+        draft.slots       = d.slots       ?? Array(20).fill(null);
+        draft.cursor      = d.cursor      ?? 0;
+    }
+    if (data.gameNotes)    gameNotes    = data.gameNotes;
+    if (data.opponent)     opponent     = data.opponent;
+    if (data.seriesFormat) seriesFormat = data.seriesFormat;
+    if (data.seriesDate)   seriesDate   = data.seriesDate;
+}
+
+function startListener() {
+    return new Promise(resolve => {
+        let ready = false;
+        DOC.onSnapshot(doc => {
+            const data = doc.data();
+            if (data) {
+                const inc = JSON.stringify(data);
+                if (inc !== lastSavedJSON) {
+                    lastSavedJSON = inc;
+                    applyRecord(data);
+                    if (ready) renderAll();
+                }
+            }
+            if (!ready) { ready = true; resolve(); }
+        }, err => { console.error(err); resolve(); });
+    });
+}
+
+function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveToDB, 1500); }
+function scheduleSaveNow() { clearTimeout(saveTimer); saveToDB(); }
+
+async function saveToDB() {
+    try {
+        setStatus('saving', 'Saving…');
+        const payload = {
+            members: state.members,
+            comps:   state.comps.map(c=>({...c, slots: Object.fromEntries(c.slots.map((s,i)=>[i,s]))})),
+            bans:    state.bans,
+            draft: {
+                active: draft.active, format: draft.format, currentGame: draft.currentGame,
+                blueSide: draft.blueSide, fearless: draft.fearless, games: draft.games,
+                slots: draft.slots, cursor: draft.cursor,
+            },
+            gameNotes, opponent, seriesFormat, seriesDate,
+        };
+        lastSavedJSON = JSON.stringify(payload);
+        await DOC.set(payload);
+        setStatus('saved', 'Saved ✓');
+    } catch(e) { console.error(e); setStatus('error', 'Save failed'); }
+}
+
+function setStatus(cls, txt) {
+    const el = document.getElementById('saveStatus');
+    el.className = cls; el.textContent = txt;
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+async function init() {
+    document.getElementById('opponentInput').addEventListener('input', e => {
+        opponent = e.target.value; scheduleSave();
+    });
+    document.getElementById('sideSelect').addEventListener('change', e => {
+        draft.blueSide = e.target.value === 'blue' ? 'home' : 'away';
+        scheduleSave(); renderAll();
+    });
+    document.getElementById('formatSelect').addEventListener('change', e => {
+        seriesFormat = e.target.value; scheduleSave();
+    });
+    document.getElementById('dateInput').addEventListener('change', e => {
+        seriesDate = e.target.value; scheduleSave();
+    });
+    document.getElementById('notesTA').addEventListener('input', e => {
+        gameNotes[activeNoteGame] = e.target.value; scheduleSave();
+    });
+
+    await Promise.all([startListener(), loadChampions()]);
+
+    // Sync header inputs from loaded data
+    const oppEl = document.getElementById('opponentInput');
+    if (oppEl && !oppEl.matches(':focus')) oppEl.value = opponent;
+    const fmtEl = document.getElementById('formatSelect');
+    if (fmtEl) fmtEl.value = seriesFormat || 'scrim';
+    const dateEl = document.getElementById('dateInput');
+    if (dateEl) dateEl.value = seriesDate || '';
+
+    renderAll();
+    setStatus('saved', 'Connected');
+}
+
+// ── Champions ────────────────────────────────────────────────────────────────
+async function loadChampions() {
+    try {
+        const vr = await fetch('https://ddragon.leagueoflegends.com/api/versions.json');
+        state.version = (await vr.json())[0];
+        const cr = await fetch(`https://ddragon.leagueoflegends.com/cdn/${state.version}/data/en_US/champion.json`);
+        state.champions = Object.values((await cr.json()).data)
+            .map(c=>({id:c.id, name:c.name, image:c.image.full}))
+            .sort((a,b)=>a.name.localeCompare(b.name));
+    } catch(e) { console.error('Champion load failed', e); }
+}
+
+// ── Render All ───────────────────────────────────────────────────────────────
+function renderAll() {
+    renderSetup();
+    renderSides();
+    renderChampGrid();
+    renderTierList();
+    renderTurnStrip();
+    renderLockinBar();
+    renderGameTabs();
+    renderNotesPanel();
+    renderFearless();
+    renderScore();
+    renderCounterPicks();
+    syncHeader();
+}
+
+function syncHeader() {
+    const s = document.getElementById('sideSelect');
+    if (s) s.value = draft.blueSide === 'home' ? 'blue' : 'red';
+    document.getElementById('flipBtn').disabled      = draft.active && draft.cursor > 0;
+    document.getElementById('undoBtn').disabled      = !draft.active || draft.cursor === 0;
+    document.getElementById('gameStartBtn').disabled = !draft.active || draft.cursor < 20;
+    const oppEl = document.getElementById('opponentInput');
+    if (oppEl && !oppEl.matches(':focus') && opponent) oppEl.value = opponent;
+}
+
+function renderSetup() {
+    document.getElementById('setupOverlay').style.display = draft.active ? 'none' : 'flex';
+}
+
+// ── Render: Draft Sides ──────────────────────────────────────────────────────
+function renderSides() {
+    const isHomeBlue = draft.blueSide === 'home';
+    renderBansRow('blueBans',  isHomeBlue ? BLUE_BAN_SLOTS  : RED_BAN_SLOTS,  'blue');
+    renderPicksCol('bluePicks', isHomeBlue ? BLUE_PICK_SLOTS : RED_PICK_SLOTS, 'blue');
+    renderBansRow('redBans',   isHomeBlue ? RED_BAN_SLOTS   : BLUE_BAN_SLOTS,  'red');
+    renderPicksCol('redPicks', isHomeBlue ? RED_PICK_SLOTS  : BLUE_PICK_SLOTS,  'red');
+}
+
+function activeSlotClass(slotIdx) {
+    if (!draft.active || draft.cursor !== slotIdx || draft.cursor >= 20) return '';
+    return DRAFT_SEQ[slotIdx].t === 'blue' ? 'blue-active' : 'red-active';
+}
+
+function renderBansRow(elId, slots, side) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const unavail  = unavailable();
+    const preview  = draftStaged || hoverPreview;
+    el.innerHTML = slots.map((si, i) => {
+        const id      = draft.slots[si];
+        const aCls    = activeSlotClass(si);
+        const isPrev  = !id && draft.cursor === si && preview;
+        const showId  = id || (isPrev ? preview : null);
+        const c       = showId ? getChamp(showId) : null;
+        return `<div class="ban-slot ${aCls} ${isPrev ? 'preview' : ''}" title="${c ? esc(c.name) : 'Ban '+(i+1)}" onclick="handleSlotClick(${si})">
+            ${c ? `<img src="${imgUrl(c)}" alt="${esc(c.name)}">` : '✕'}
+        </div>`;
+    }).join('');
+}
+
+function renderPicksCol(elId, slots, side) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const preview = draftStaged || hoverPreview;
+    el.innerHTML = slots.map((si, pi) => {
+        const id      = draft.slots[si];
+        const aCls    = activeSlotClass(si);
+        const isPrev  = !id && draft.cursor === si && preview;
+        const showId  = id || (isPrev ? preview : null);
+        const c       = showId ? getChamp(showId) : null;
+        const isFear  = id && draft.fearless.includes(id);
+        return `<div class="pick-slot ${aCls} ${isPrev ? 'preview' : ''} ${isFear ? 'fearless' : ''}" onclick="handleSlotClick(${si})">
+            ${c ? `<img class="ps-img" src="${imgUrl(c)}" alt="${esc(c.name)}">
+                   <div class="ps-info"><div class="ps-name">${esc(c.name)}</div></div>`
+                : `<div class="ps-info"><div class="ps-num">P${pi+1}</div></div>`}
+        </div>`;
+    }).join('');
+}
+
+// ── Turn Strip ───────────────────────────────────────────────────────────────
+function renderTurnStrip() {
+    const el = document.getElementById('turnStrip');
+    if (!draft.active) { el.style.display = 'none'; return; }
+    el.style.display = 'flex';
+    if (draft.cursor >= 20) {
+        el.innerHTML = '<span style="color:#2ecc71;font-weight:700">Draft Complete</span> — click Game Start when ready';
+        return;
+    }
+    const step = DRAFT_SEQ[draft.cursor];
+    const isHomeBlue = draft.blueSide === 'home';
+    const teamName = (step.t === 'blue') === isHomeBlue ? 'HOME' : 'AWAY';
+    const color    = step.t === 'blue' ? '#4e9eff' : '#ff5555';
+    const action   = step.a === 'ban' ? 'banning' : 'picking';
+    el.innerHTML = `<span class="turn-action" style="color:${color}">${teamName}</span> is ${action}
+        <span style="color:#333;margin-left:6px;font-size:10px">${draft.cursor + 1}/20</span>
+        ${step.a === 'ban' ? `<button class="hbtn" style="margin-left:8px;padding:2px 8px;font-size:10px" onclick="draftSkipBan()">Skip Ban</button>` : ''}`;
+}
+
+function draftSkipBan() {
+    if (!draft.active || draft.cursor >= 20) return;
+    if (DRAFT_SEQ[draft.cursor]?.a !== 'ban') return;
+    draft.slots[draft.cursor] = null;
+    draft.cursor++;
+    draftStaged = null; hoverPreview = null;
+    scheduleSave(); renderAll();
+}
+
+// ── Lock-in Bar ──────────────────────────────────────────────────────────────
+function renderLockinBar() {
+    const bar  = document.getElementById('lockinBar');
+    const name = document.getElementById('lockinName');
+    if (!draft.active || !draftStaged || draft.cursor >= 20) {
+        bar.style.display = 'none'; return;
+    }
+    const c = getChamp(draftStaged);
+    bar.style.display = 'flex';
+    name.textContent  = c ? c.name : draftStaged;
+}
+
+// ── Slot / Champ Interaction ─────────────────────────────────────────────────
+function handleSlotClick(si) {
+    if (!draft.active) return;
+    if (draft.slots[si]) return; // slot already filled
+    if (si !== draft.cursor) return; // only current cursor slot is interactive
+    if (draftStaged) draftCommit();
+}
+
+function handleChampClick(champId) {
+    if (!draft.active || draft.cursor >= 20) return;
+    if (unavailable().has(champId)) return;
+    if (draftStaged === champId) {
+        draftCommit();
+    } else {
+        draftStaged  = champId;
+        hoverPreview = null;
+        renderSides(); renderChampGrid(); renderTierList(); renderLockinBar(); renderCounterPicks();
+    }
+}
+
+function cancelStage() {
+    draftStaged = null; hoverPreview = null;
+    renderSides(); renderChampGrid(); renderTierList(); renderLockinBar(); renderCounterPicks();
+}
+
+function draftCommit() {
+    if (!draftStaged || draft.cursor >= 20) return;
+    draft.slots[draft.cursor] = draftStaged;
+    draft.cursor++;
+    draftStaged = null; hoverPreview = null;
+    scheduleSave(); renderAll();
+}
+
+function draftUndo() {
+    if (!draft.active || draft.cursor === 0) return;
+    draftStaged = null; hoverPreview = null;
+    draft.cursor--;
+    draft.slots[draft.cursor] = null;
+    scheduleSave(); renderAll();
+}
+
+function onChampHover(champId) {
+    if (!draft.active || draft.cursor >= 20 || draftStaged) return;
+    if (unavailable().has(champId)) return;
+    hoverPreview = champId;
+    renderBansRow('blueBans',  (draft.blueSide==='home') ? BLUE_BAN_SLOTS  : RED_BAN_SLOTS,  'blue');
+    renderPicksCol('bluePicks',(draft.blueSide==='home') ? BLUE_PICK_SLOTS : RED_PICK_SLOTS, 'blue');
+    renderBansRow('redBans',   (draft.blueSide==='home') ? RED_BAN_SLOTS   : BLUE_BAN_SLOTS,  'red');
+    renderPicksCol('redPicks', (draft.blueSide==='home') ? RED_PICK_SLOTS  : BLUE_PICK_SLOTS,  'red');
+}
+function onChampLeave() {
+    if (!hoverPreview) return;
+    hoverPreview = null;
+    renderBansRow('blueBans',  (draft.blueSide==='home') ? BLUE_BAN_SLOTS  : RED_BAN_SLOTS,  'blue');
+    renderPicksCol('bluePicks',(draft.blueSide==='home') ? BLUE_PICK_SLOTS : RED_PICK_SLOTS, 'blue');
+    renderBansRow('redBans',   (draft.blueSide==='home') ? RED_BAN_SLOTS   : BLUE_BAN_SLOTS,  'red');
+    renderPicksCol('redPicks', (draft.blueSide==='home') ? RED_PICK_SLOTS  : BLUE_PICK_SLOTS,  'red');
+}
+
+// ── View Controls ─────────────────────────────────────────────────────────────
+function setView(v) {
+    currentView = v;
+    ['vtPool','vtAll','vtTierList'].forEach(id => document.getElementById(id).classList.remove('active'));
+    document.getElementById(v==='pool'?'vtPool':v==='all'?'vtAll':'vtTierList').classList.add('active');
+    document.getElementById('poolView').style.display = v !== 'tierlist' ? 'flex' : 'none';
+    document.getElementById('tierView').style.display = v === 'tierlist' ? 'flex' : 'none';
+    if (v === 'tierlist') renderTierList(); else renderChampGrid();
+}
+
+function setRole(role, el) {
+    roleFilter = role;
+    document.querySelectorAll('.rtab').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    if (currentView === 'tierlist') renderTierList(); else renderChampGrid();
+}
+
+// ── Render: Champion Grid ────────────────────────────────────────────────────
+function renderChampGrid() {
+    if (currentView === 'tierlist') return;
+    const grid = document.getElementById('champGrid');
+    if (!grid || !state.champions.length) return;
+
+    const q       = document.getElementById('champSearch').value.trim().toLowerCase();
+    const unavail = unavailable();
+    let list;
+
+    if (currentView === 'pool') {
+        const poolData = {};
+        state.members.forEach(m => {
+            if (roleFilter !== 'all' && m.role !== roleFilter) return;
+            m.pool.forEach(item => {
+                const prev = poolData[item.id];
+                if (!prev || (TAG_ORDER[item.tag||'']??5) < (TAG_ORDER[prev.tag||'']??5))
+                    poolData[item.id] = item;
+            });
+        });
+        list = state.champions.filter(c => poolData[c.id] && (!q || c.name.toLowerCase().includes(q)))
+            .map(c => ({...c, tag: poolData[c.id]?.tag || ''}));
+    } else {
+        list = state.champions.filter(c => !q || c.name.toLowerCase().includes(q))
+            .map(c => ({...c, tag: ''}));
+    }
+
+    document.getElementById('poolLbl').textContent =
+        currentView === 'pool' ? `CHAMPION POOL · ${list.length}` : `ALL CHAMPIONS · ${list.length}`;
+
+    grid.innerHTML = list.map(c => {
+        const off    = unavail.has(c.id);
+        const staged = !off && draftStaged === c.id;
+        return `<div class="gc ${off?'off':''} ${staged?'staged':''}" data-tag="${esc(c.tag||'')}"
+                     onclick="handleChampClick('${c.id}')"
+                     onmouseenter="onChampHover('${c.id}')" onmouseleave="onChampLeave()">
+            <img src="${imgUrl(c)}" alt="${esc(c.name)}" loading="lazy">
+            <div class="tip">${esc(c.name)}</div>
+        </div>`;
+    }).join('');
+}
+
+// ── Render: Tier List ─────────────────────────────────────────────────────────
+function renderTierList() {
+    if (currentView !== 'tierlist') return;
+    const el = document.getElementById('tierView');
+    if (!el || !state.champions.length) return;
+
+    const q       = document.getElementById('champSearch').value.trim().toLowerCase();
+    const unavail = unavailable();
+    const roles   = roleFilter === 'all' ? ROLE_VALS : [roleFilter];
+    const roleLabels = {top:'TOP',jungle:'JGL',mid:'MID',bot:'ADC',support:'SUP'};
+    const tierLabels = {1:'1',2:'2',3:'3',4:'OD'};
+    const tierCls    = {1:'t1',2:'t2',3:'t3',4:'od'};
+
+    function getChampsByTierRole(role, tier) {
+        const tags = TIER_MAP[tier];
+        const m = state.members.find(m => m.role === role);
+        if (!m) return [];
+        return sortedPool(m.pool).filter(item => {
+            if (!tags.includes(item.tag||'')) return false;
+            const c = getChamp(item.id);
+            return c && (!q || c.name.toLowerCase().includes(q));
+        }).map(item => item.id);
+    }
+
+    const cols = `32px ${roles.map(()=>'1fr').join(' ')}`;
+    let html = `<div class="tier-grid" style="grid-template-columns:${cols}">`;
+    // Header
+    html += `<div class="tg-hdr lbl"></div>`;
+    roles.forEach(r => { html += `<div class="tg-hdr ${r==='bot'?'adc':r}">${roleLabels[r]}</div>`; });
+    // Rows
+    [1,2,3,4].forEach(tier => {
+        html += `<div class="tg-lbl"><span class="tg-lbl-txt ${tierCls[tier]}">${tierLabels[tier]}</span></div>`;
+        roles.forEach(role => {
+            const ids = getChampsByTierRole(role, tier);
+            html += `<div class="tg-cell">`;
+            ids.forEach(id => {
+                const c = getChamp(id);
+                if (!c) return;
+                const off    = unavail.has(id);
+                const staged = !off && draftStaged === id;
+                html += `<div class="tc ${off?'off':''} ${staged?'staged':''}"
+                              onclick="handleChampClick('${id}')"
+                              onmouseenter="onChampHover('${id}')" onmouseleave="onChampLeave()">
+                    <img src="${imgUrl(c)}" alt="${esc(c.name)}" loading="lazy">
+                    <div class="tip">${esc(c.name)}</div>
+                </div>`;
+            });
+            if (!ids.length) html += `<span style="font-size:10px;color:#2a2a2a">—</span>`;
+            html += `</div>`;
+        });
+    });
+    html += '</div>';
+    el.innerHTML = html;
+}
+
+// ── Counter Picks ─────────────────────────────────────────────────────────────
+function renderCounterPicks() {
+    const el = document.getElementById('counterContent');
+    if (!el) return;
+    if (!draft.active) { el.innerHTML = '<span style="font-size:10px;color:#2a2a2a">Start series first</span>'; return; }
+
+    const unavail = unavailable();
+    // Show top-rated available pool champions as suggestions
+    const seen = new Set();
+    const suggestions = [];
+    state.members.filter(m => m.role !== 'sub').forEach(m => {
+        sortedPool(m.pool).forEach(item => {
+            if (seen.has(item.id) || unavail.has(item.id)) return;
+            if (!['best','great'].includes(item.tag||'')) return;
+            seen.add(item.id);
+            suggestions.push(item.id);
+        });
+    });
+
+    if (!suggestions.length) {
+        el.innerHTML = '<span style="font-size:10px;color:#2a2a2a">No pool data</span>';
+        return;
+    }
+
+    el.innerHTML = `<div class="counter-champs">${suggestions.slice(0,12).map(id => {
+        const c = getChamp(id);
+        if (!c) return '';
+        const staged = draftStaged === id;
+        return `<div class="ctr-champ ${staged?'staged':''}" title="${esc(c.name)}" onclick="handleChampClick('${id}')">
+            <img src="${imgUrl(c)}" alt="${esc(c.name)}">
+        </div>`;
+    }).join('')}</div>`;
+}
+
+// ── Game Tabs ─────────────────────────────────────────────────────────────────
+function renderGameTabs() {
+    const headerEl = document.getElementById('gameTabs');
+    if (!headerEl) return;
+    const max = draft.active ? draft.format : 3;
+    headerEl.innerHTML = Array.from({length: max}, (_, i) => {
+        const g      = i + 1;
+        const active = draft.active && g === draft.currentGame;
+        const past   = draft.games.some(gm => gm.num === g);
+        return `<button class="gtab ${active?'active':''} ${past&&!active?'past':''}" onclick="switchNoteGame(${g})">G${g}</button>`;
+    }).join('');
+
+    const notesEl = document.getElementById('notesGTabs');
+    if (!notesEl) return;
+    const noteMax = Math.max(draft.currentGame, Object.keys(gameNotes).length, 1);
+    notesEl.innerHTML = Array.from({length: Math.min(noteMax, 7)}, (_, i) => {
+        const g = i + 1;
+        return `<button class="ngtab ${g===activeNoteGame?'active':''}" onclick="switchNoteGame(${g})">G${g}</button>`;
+    }).join('');
+}
+
+function switchNoteGame(g) {
+    activeNoteGame = g;
+    renderGameTabs();
+    renderNotesPanel();
+}
+
+// ── Notes ─────────────────────────────────────────────────────────────────────
+function renderNotesPanel() {
+    const ta = document.getElementById('notesTA');
+    if (ta && !ta.matches(':focus')) ta.value = gameNotes[activeNoteGame] || '';
+}
+
+// ── Fearless ──────────────────────────────────────────────────────────────────
+function renderFearless() {
+    const wrap  = document.getElementById('fearlessWrap');
+    const chips = document.getElementById('fearlessChips');
+    if (!wrap || !chips) return;
+    if (!draft.active || !draft.fearless.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    chips.innerHTML = draft.fearless.map(id => {
+        const c = getChamp(id);
+        return c ? `<div class="fc" title="${esc(c.name)}"><img src="${imgUrl(c)}" alt="${esc(c.name)}"></div>` : '';
+    }).join('');
+}
+
+// ── Score ─────────────────────────────────────────────────────────────────────
+function renderScore() {
+    const homeW = draft.games.filter(g=>g.winner==='home').length;
+    const awayW = draft.games.filter(g=>g.winner==='away').length;
+    const notesScore = document.getElementById('notesScore');
+    const headerScore = document.getElementById('headerScore');
+    const txt = draft.active ? `HOME ${homeW} — ${awayW} AWAY` : '—';
+    if (notesScore) notesScore.textContent  = txt;
+    if (headerScore) headerScore.textContent = draft.active ? `${homeW} — ${awayW}` : '';
+}
+
+// ── Series Actions ────────────────────────────────────────────────────────────
+function startSeries(format) {
+    draft.active = true; draft.format = format; draft.currentGame = 1;
+    draft.fearless = []; draft.games = []; draft.slots = Array(20).fill(null); draft.cursor = 0;
+    draftStaged = null; hoverPreview = null;
+    gameNotes = {}; activeNoteGame = 1;
+    scheduleSave(); renderAll();
+}
+
+function endSeries() {
+    if (!confirm('End this series and reset the draft?')) return;
+    draft.active = false; draft.slots = Array(20).fill(null); draft.cursor = 0;
+    draft.fearless = []; draft.games = []; draft.currentGame = 1;
+    draftStaged = null; hoverPreview = null;
+    scheduleSave(); renderAll();
+}
+
+function flipSides() {
+    if (draft.active && draft.cursor > 0) return;
+    draft.blueSide = draft.blueSide === 'home' ? 'away' : 'home';
+    scheduleSave(); renderAll();
+}
+
+function commitGame() {
+    if (draft.cursor < 20) return;
+    document.getElementById('winnerLabel').textContent = `Game ${draft.currentGame} — Who Won?`;
+    document.getElementById('winnerOv').style.display = 'flex';
+}
+
+function recordWinner(winner) {
+    document.getElementById('winnerOv').style.display = 'none';
+    const bp = BLUE_PICK_SLOTS.map(i=>draft.slots[i]).filter(Boolean);
+    const rp = RED_PICK_SLOTS.map(i=>draft.slots[i]).filter(Boolean);
+    const bb = BLUE_BAN_SLOTS.map(i=>draft.slots[i]).filter(Boolean);
+    const rb = RED_BAN_SLOTS.map(i=>draft.slots[i]).filter(Boolean);
+
+    draft.games.push({ num: draft.currentGame, winner, picks:{blue:bp,red:rp}, bans:{blue:bb,red:rb} });
+    [...bp,...rp].forEach(id => { if (!draft.fearless.includes(id)) draft.fearless.push(id); });
+
+    draft.currentGame++;
+    draft.slots = Array(20).fill(null);
+    draft.cursor = 0;
+    draftStaged  = null; hoverPreview = null;
+    activeNoteGame = draft.currentGame;
+
+    scheduleSaveNow(); renderAll();
+}
+
+init();
+</script>
+</body>
+</html>

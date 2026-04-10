@@ -281,9 +281,9 @@
         .draft-team-label.red  { color:#ff5555; }
 
         /* Ban cells */
-        .draft-bans-row { display:flex; gap:3px; }
-        .draft-ban-cell { width:36px; height:36px; border-radius:2px; border:1px solid #2a2a2a; background:#111; display:flex; align-items:center; justify-content:center; font-size:16px; color:#2a2a2a; overflow:hidden; position:relative; flex-shrink:0; transition:border-color .15s; }
-        .draft-ban-cell img { width:36px; height:36px; object-fit:cover; display:block; filter:grayscale(70%) brightness(.6); }
+        .draft-bans-row { display:flex; gap:4px; }
+        .draft-ban-cell { width:48px; height:48px; border-radius:2px; border:1px solid #2a2a2a; background:#111; display:flex; align-items:center; justify-content:center; font-size:18px; color:#2a2a2a; overflow:hidden; position:relative; flex-shrink:0; transition:border-color .15s; }
+        .draft-ban-cell img { width:48px; height:48px; object-fit:cover; display:block; filter:grayscale(70%) brightness(.6); }
         .draft-ban-cell.active { border-color:#fff; box-shadow:0 0 8px #fff4; animation:pulse .8s ease-in-out infinite alternate; }
         .draft-ban-cell.blue-active { border-color:#4e9eff; box-shadow:0 0 8px #4e9eff66; animation:pulse-blue .8s ease-in-out infinite alternate; }
         .draft-ban-cell.red-active  { border-color:#ff5555; box-shadow:0 0 8px #ff555566; animation:pulse-red  .8s ease-in-out infinite alternate; }
@@ -345,6 +345,42 @@
         .winner-btn:hover { border-color:#fff; color:#fff; }
         .winner-btn.home-btn:hover { border-color:#4e9eff; color:#4e9eff; }
         .winner-btn.away-btn:hover { border-color:#ff5555; color:#ff5555; }
+        /* ── Counter-pick Popover ── */
+        #cpPopover {
+            position:fixed; z-index:1200; background:#161616; border:1px solid #333;
+            border-radius:3px; padding:8px; display:none; flex-direction:column; gap:6px;
+            box-shadow:0 6px 20px rgba(0,0,0,.85); width:230px;
+        }
+        #cpPopover.open { display:flex; }
+        .cp-header { display:flex; align-items:center; gap:7px; }
+        .cp-thumb { width:30px; height:30px; border-radius:2px; object-fit:cover; flex-shrink:0; }
+        .cp-champ-name { font-size:12px; font-weight:700; color:#e0e0e0; flex:1; }
+        .cp-close-btn { background:none; border:none; color:#555; font-size:14px; cursor:pointer; padding:0 2px; line-height:1; }
+        .cp-close-btn:hover { color:#ccc; }
+        .cp-label { font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:#555; font-weight:700; }
+        .cp-grid { display:flex; flex-wrap:wrap; gap:3px; min-height:20px; }
+        .cp-chip { position:relative; width:32px; flex-shrink:0; }
+        .cp-chip img { width:32px; height:32px; object-fit:cover; border-radius:2px; border:1px solid #333; display:block; }
+        .cp-chip:hover .rm-btn { display:flex; }
+        .cp-empty-msg { font-size:11px; color:#333; }
+        .cp-search { width:100%; background:#111; border:1px solid #2a2a2a; color:#e0e0e0; font-size:11px; font-family:inherit; padding:5px 8px; border-radius:2px; outline:none; }
+        .cp-search:focus { border-color:#555; }
+        .cp-search::placeholder { color:#444; }
+        .cp-results { display:flex; flex-wrap:wrap; gap:3px; max-height:80px; overflow-y:auto; }
+        .cp-result { width:32px; cursor:pointer; flex-shrink:0; }
+        .cp-result img { width:32px; height:32px; object-fit:cover; border-radius:2px; border:1px solid #2a2a2a; display:block; transition:border-color .1s,filter .1s; }
+        .cp-result:hover img { border-color:#aaa; filter:brightness(1.2); }
+        /* Draft counter-picks section */
+        .draft-cp-section { border-top:1px solid #1e1e1e; padding:8px; flex-shrink:0; }
+        .draft-cp-heading { font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:#555; font-weight:700; margin-bottom:6px; }
+        .draft-cp-group { margin-bottom:7px; }
+        .draft-cp-for { font-size:9px; color:#444; margin-bottom:3px; letter-spacing:.5px; display:flex; align-items:center; gap:4px; }
+        .draft-cp-for img { width:16px; height:16px; object-fit:cover; border-radius:1px; opacity:.6; }
+        .draft-cp-chips { display:flex; flex-wrap:wrap; gap:3px; }
+        .draft-cp-chip { width:28px; height:28px; border-radius:2px; object-fit:cover; border:1px solid #2a2a2a; cursor:pointer; transition:border-color .1s,filter .1s; }
+        .draft-cp-chip:hover { border-color:#888; filter:brightness(1.2); }
+        .draft-cp-chip.unavail { filter:grayscale(100%) brightness(.3); opacity:.4; pointer-events:none; }
+        .draft-cp-none { font-size:11px; color:#2a2a2a; }
         /* ── Map Overlay ── */
         /* ── Map Canvas ── */
         .draft-vs-map { flex:2; min-width:180px; display:flex; align-items:center; justify-content:center; padding:6px; }
@@ -419,6 +455,14 @@
         <div class="draft-pools-panel" id="draftPoolsPanel">
             <div class="panel-title">Champion Pools</div>
             <div class="members-scroll" id="draftMembersContainer"></div>
+            <div class="draft-cp-section" id="cpHoverSection" style="display:none">
+                <div class="draft-cp-heading">Counters to <span id="cpHoverName" style="color:#e0e0e0;font-weight:700"></span></div>
+                <div id="cpHoverContent"></div>
+            </div>
+            <div class="draft-cp-section" id="homeCpSection" style="display:none">
+                <div class="draft-cp-heading">Counter Picks vs Opponent</div>
+                <div id="homeCpContent"></div>
+            </div>
         </div>
 
         <div class="resize-handle" id="draftHandle1"></div>
@@ -481,6 +525,10 @@
         <div class="draft-comps-panel" id="draftCompsPanel">
             <div class="panel-title">Team Comps</div>
             <div class="comps-scroll" id="draftCompsContainer"></div>
+            <div class="draft-cp-section" id="awayCpSection" style="display:none">
+                <div class="draft-cp-heading">Counter Picks vs Us</div>
+                <div id="awayCpContent"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -528,6 +576,19 @@
             <button class="winner-btn" onclick="recordWinner(null)">Skip</button>
         </div>
     </div>
+</div>
+
+<!-- Counter-pick popover -->
+<div id="cpPopover">
+    <div class="cp-header">
+        <img class="cp-thumb" id="cpThumb" src="" alt="">
+        <span class="cp-champ-name" id="cpName">—</span>
+        <button class="cp-close-btn" onclick="closeCpPopover()">×</button>
+    </div>
+    <div class="cp-label">Countered by</div>
+    <div class="cp-grid" id="cpGrid"></div>
+    <input class="cp-search" id="cpSearch" placeholder="Search to add counter…" oninput="renderCpResults()">
+    <div class="cp-results" id="cpResults"></div>
 </div>
 
 <!-- Map Overlay -->
@@ -603,6 +664,7 @@ const state = {
     version: null,
     champions: [],
     bans: [],
+    counterPicks: {},  // { champId: [counterChampId, ...] }
     comps: [{ name:'Comp 1', slots:[[],[],[],[],[],[]], core:[false,false,false,false,false,false], threats:[], champBadges:{} }],
     members: [
         { name:'PUSH',          role:'top',     pool:[], emoji:'' },
@@ -659,6 +721,7 @@ function applyRecord(data) {
         champBadges: comp.champBadges ?? {},
     }));
     state.bans = data.bans || [];
+    if (data.counterPicks) state.counterPicks = data.counterPicks;
 
     if (data.draft) {
         const d = data.draft;
@@ -730,7 +793,8 @@ async function saveToDB() {
                 slots:       draft.slots,
                 cursor:      draft.cursor,
             },
-            mapPlacements: mapPlacements,
+            mapPlacements:  mapPlacements,
+            counterPicks:   state.counterPicks,
         };
         lastSavedJSON = JSON.stringify(payload);
         await DOC.set(payload);
@@ -860,7 +924,8 @@ function renderRoster(list) {
     if (!list.length) { grid.innerHTML = '<div class="loading-msg">No results</div>'; return; }
     grid.innerHTML = list.map(c => `
         <div class="roster-champ ${isBanned(c.id) ? 'banned' : ''}"
-             draggable="true" data-id="${c.id}" data-source="roster">
+             draggable="true" data-id="${c.id}" data-source="roster"
+             oncontextmenu="openCpPopover(event,'${c.id}')">
             <img src="${imgUrl(c)}" alt="${c.name}" loading="lazy">
             <div class="tip">${c.name}</div>
         </div>`).join('');
@@ -982,7 +1047,7 @@ function renderMemberRow(m, mi) {
                      ondragover="onPoolChampDragOver(event,${mi})"
                      ondragleave="onPoolChampDragLeave(event)"
                      ondrop="onDropReorder(event,${mi},'${c.id}')"
-                     oncontextmenu="event.preventDefault(); removeFromPool(${mi},'${c.id}')">
+                     oncontextmenu="openCpPopover(event,'${c.id}')">
                     <img src="${imgUrl(c)}" alt="${c.name}" title="${c.name}">
                     <button class="rm-btn" onclick="event.stopPropagation(); removeFromPool(${mi},'${c.id}')">×</button>
                     ${(item.badges||[]).length ? `<div class="pool-badges">${(item.badges||[]).map(b=>`<span class="pool-badge">${BADGE_ICONS[b]||b}</span>`).join('')}</div>` : ''}
@@ -1187,11 +1252,46 @@ function draftHoverEnter(champId) {
     if (unavailableChamps().has(champId)) return;
     draftHoverPreview = champId;
     renderDraftBoard();
+    showCpHover(champId);
 }
 function draftHoverLeave() {
     if (draftStaged) return;
     draftHoverPreview = null;
     renderDraftBoard();
+    clearCpHover();
+}
+
+let cpHoverChamp = null;
+
+function showCpHover(champId) {
+    cpHoverChamp = champId;
+    const section = document.getElementById('cpHoverSection');
+    const content = document.getElementById('cpHoverContent');
+    const nameEl  = document.getElementById('cpHoverName');
+    if (!section || !content || !nameEl) return;
+
+    const counters = state.counterPicks[champId] || [];
+    const c = getChamp(champId);
+    if (!counters.length) { section.style.display = 'none'; return; }
+
+    nameEl.textContent = c ? c.name : champId;
+    const unavail = unavailableChamps();
+    content.innerHTML = `<div class="draft-cp-chips">${counters.map(cid => {
+        const cc = getChamp(cid);
+        if (!cc) return '';
+        const off = unavail.has(cid);
+        return `<img class="draft-cp-chip ${off ? 'unavail' : ''}"
+                     src="${imgUrl(cc)}" title="${cc.name}"
+                     oncontextmenu="openCpPopover(event,'${cid}')"
+                     ${!off && draft.active ? `onclick="draftStageChamp('${cid}')"` : ''}>`;
+    }).join('')}</div>`;
+    section.style.display = '';
+}
+
+function clearCpHover() {
+    cpHoverChamp = null;
+    const section = document.getElementById('cpHoverSection');
+    if (section) section.style.display = 'none';
 }
 
 // Stage a champion (click) — sticky preview, greyed out in picker, Lock In to commit
@@ -1534,6 +1634,9 @@ function renderDraftTab() {
     // Map canvas
     renderMapCanvas();
     updateMapGlows();
+
+    // Counter-picks
+    renderDraftCounterPicks();
 }
 
 function renderDraftBoard() {
@@ -1576,7 +1679,8 @@ function renderDraftBoard() {
             const c = getChamp(id);
             const fearCls = draft.fearless.includes(id) ? 'fearless' : '';
             return `<div class="draft-pick-cell ${cls} ${fearCls}"
-                         draggable="true" ondragstart="dragData={champId:'${id}',source:'draft-pick'};event.dataTransfer.effectAllowed='copy';">
+                         draggable="true" ondragstart="dragData={champId:'${id}',source:'draft-pick'};event.dataTransfer.effectAllowed='copy';"
+                         oncontextmenu="openCpPopover(event,'${id}')">
                 ${c ? `<img src="${imgUrl(c)}" title="${c.name}">
                        <div class="pick-name">${c.name}</div>` : '<span>?</span>'}
             </div>`;
@@ -1677,8 +1781,9 @@ function renderDraftPicker() {
                      data-champid="${c.id}"
                      draggable="true" ondragstart="dragData={champId:'${c.id}',source:'draft-picker'};event.dataTransfer.effectAllowed='copy';"
                      onclick="${off ? '' : `draftStageChamp('${c.id}')`}"
-                     onmouseenter="${off ? '' : `draftHoverEnter('${c.id}')`}"
-                     onmouseleave="${off ? '' : `draftHoverLeave()`}">
+                     onmouseenter="${off ? `showCpHover('${c.id}')` : `draftHoverEnter('${c.id}')`}"
+                     onmouseleave="${off ? `clearCpHover()` : `draftHoverLeave()`}"
+                     oncontextmenu="openCpPopover(event,'${c.id}')">
             <img src="${imgUrl(c)}" alt="${c.name}" loading="lazy">
             <div class="tip">${c.name}</div>
         </div>`;
@@ -1722,7 +1827,10 @@ function renderDraftPools() {
                             return `<div class="draft-pool-champ ${isFearless ? 'fearless-banned' : ''} ${isDraftBan ? 'draft-banned' : ''} ${isStaged ? 'staged-pool' : ''} ${isAvail ? 'available' : ''}"
                                          data-tag="${item.tag||''}" data-champid="${c.id}"
                                          draggable="true" ondragstart="dragData={champId:'${c.id}',source:'draft-pool'};event.dataTransfer.effectAllowed='copy';"
-                                         ${isAvail ? `onclick="draftStageChamp('${c.id}')" onmouseenter="draftHoverEnter('${c.id}')" onmouseleave="draftHoverLeave()"` : ''}>
+                                         oncontextmenu="openCpPopover(event,'${c.id}')"
+                                         onmouseenter="${isAvail ? `draftHoverEnter('${c.id}')` : `showCpHover('${c.id}')`}"
+                                         onmouseleave="${isAvail ? `draftHoverLeave()` : `clearCpHover()`}"
+                                         ${isAvail ? `onclick="draftStageChamp('${c.id}')"` : ''}>
                                 <img src="${imgUrl(c)}" title="${c.name}">
                                 ${(item.badges||[]).length ? `<div class="pool-badges">${(item.badges||[]).map(b=>`<span class="pool-badge">${BADGE_ICONS[b]||b}</span>`).join('')}</div>` : ''}
                             </div>`;
@@ -1775,7 +1883,9 @@ function renderDraftCompsRef() {
                                     return `<div class="comp-champ ${isStaged ? 'staged-comp' : ''} ${isClickable ? 'draft-comp-champ-clickable' : ''}"
                                                  data-tag="${getPoolTag(c.id, ri)}" data-champid="${c.id}" title="${c.name}"
                                                  draggable="true" ondragstart="dragData={champId:'${c.id}',source:'draft-comp'};event.dataTransfer.effectAllowed='copy';"
-                                                 ${isClickable ? `onclick="draftStageChamp('${c.id}')" onmouseenter="draftHoverEnter('${c.id}')" onmouseleave="draftHoverLeave()"` : ''}>
+                                                 onmouseenter="${isClickable ? `draftHoverEnter('${c.id}')` : `showCpHover('${c.id}')`}"
+                                                 onmouseleave="${isClickable ? `draftHoverLeave()` : `clearCpHover()`}"
+                                                 ${isClickable ? `onclick="draftStageChamp('${c.id}')"` : ''}>
                                         <img src="${imgUrl(c)}" alt="${c.name}" ${isGreyed ? 'style="filter:grayscale(100%) brightness(.3);opacity:.4"' : ''}>
                                         ${cbBadges.length ? `<div class="comp-badges">${cbBadges.map(b=>`<span class="comp-badge">${BADGE_ICONS[b]||b}</span>`).join('')}</div>` : ''}
                                     </div>`;
@@ -2143,6 +2253,154 @@ function removeFromSlot(ci, ri, champId) {
 function removeFromPool(mi, champId) {
     state.members[mi].pool = state.members[mi].pool.filter(p => p.id !== champId);
     renderMembers(); scheduleSave();
+}
+
+// ─── Counter Picks ────────────────────────────────────────────────────────────
+let cpTarget = null; // champId currently open in the popover
+
+function openCpPopover(e, champId) {
+    e.preventDefault();
+    e.stopPropagation();
+    closeTagPicker();
+    closeCompBadgePicker();
+
+    const c = getChamp(champId);
+    if (!c) return;
+
+    const pop  = document.getElementById('cpPopover');
+    const rect = e.currentTarget.getBoundingClientRect();
+    let left = rect.right + 8;
+    let top  = rect.top;
+    if (left + 240 > window.innerWidth)  left = rect.left - 240;
+    if (top  + 280 > window.innerHeight) top  = window.innerHeight - 290;
+    pop.style.left = Math.max(8, left) + 'px';
+    pop.style.top  = Math.max(8, top)  + 'px';
+    pop.classList.add('open');
+
+    cpTarget = champId;
+    document.getElementById('cpThumb').src = imgUrl(c);
+    document.getElementById('cpName').textContent = c.name;
+    document.getElementById('cpSearch').value = '';
+    document.getElementById('cpResults').innerHTML = '';
+    renderCpGrid();
+}
+
+function closeCpPopover() {
+    document.getElementById('cpPopover').classList.remove('open');
+    document.getElementById('cpSearch').value = '';
+    document.getElementById('cpResults').innerHTML = '';
+    cpTarget = null;
+}
+
+document.addEventListener('click', e => {
+    if (!e.target.closest('#cpPopover')) closeCpPopover();
+});
+
+function renderCpGrid() {
+    const grid = document.getElementById('cpGrid');
+    if (!cpTarget) return;
+    const counters = state.counterPicks[cpTarget] || [];
+    if (!counters.length) {
+        grid.innerHTML = '<span class="cp-empty-msg">None set — search below to add</span>';
+        return;
+    }
+    grid.innerHTML = counters.map(cid => {
+        const c = getChamp(cid);
+        return c ? `<div class="cp-chip">
+            <img src="${imgUrl(c)}" title="${c.name}">
+            <button class="rm-btn" onclick="removeCounterPick('${cpTarget}','${cid}')">×</button>
+        </div>` : '';
+    }).join('');
+}
+
+function renderCpResults() {
+    const q = document.getElementById('cpSearch').value.trim().toLowerCase();
+    const el = document.getElementById('cpResults');
+    if (!q) { el.innerHTML = ''; return; }
+    const existing = new Set(state.counterPicks[cpTarget] || []);
+    const list = state.champions.filter(c =>
+        c.id !== cpTarget && !existing.has(c.id) && c.name.toLowerCase().includes(q)
+    ).slice(0, 14);
+    el.innerHTML = list.map(c =>
+        `<div class="cp-result" onclick="addCounterPick('${cpTarget}','${c.id}')" title="${c.name}">
+            <img src="${imgUrl(c)}" alt="${c.name}" loading="lazy">
+        </div>`
+    ).join('');
+}
+
+function addCounterPick(forId, counterId) {
+    if (!state.counterPicks[forId]) state.counterPicks[forId] = [];
+    if (state.counterPicks[forId].includes(counterId)) return;
+    state.counterPicks[forId].push(counterId);
+    renderCpGrid();
+    renderCpResults();
+    if (activeTab === 'draft') renderDraftCounterPicks();
+    scheduleSave();
+}
+
+function removeCounterPick(forId, counterId) {
+    if (!state.counterPicks[forId]) return;
+    state.counterPicks[forId] = state.counterPicks[forId].filter(id => id !== counterId);
+    renderCpGrid();
+    if (activeTab === 'draft') renderDraftCounterPicks();
+    scheduleSave();
+}
+
+// ─── Draft: Counter Picks Panel ──────────────────────────────────────────────
+function renderDraftCounterPicks() {
+    const isHomeBlue   = draft.blueSide === 'home';
+    const homePickSlots = isHomeBlue ? BLUE_PICK_SLOTS : RED_PICK_SLOTS;
+    const awayPickSlots = isHomeBlue ? RED_PICK_SLOTS  : BLUE_PICK_SLOTS;
+
+    const homePicks = homePickSlots.map(i => draft.slots[i]).filter(Boolean);
+    const awayPicks = awayPickSlots.map(i => draft.slots[i]).filter(Boolean);
+
+    // "Counter Picks vs Opponent" = counters to AWAY team's picks (helps HOME decide what to pick)
+    renderSideCpSection('homeCpSection', 'homeCpContent', awayPicks);
+    // "Counter Picks vs Us" = counters to HOME team's picks (what AWAY might pick against us)
+    renderSideCpSection('awayCpSection', 'awayCpContent', homePicks);
+}
+
+function renderSideCpSection(sectionId, contentId, againstPicks) {
+    const section = document.getElementById(sectionId);
+    const content = document.getElementById(contentId);
+    if (!section || !content) return;
+
+    const unavail = unavailableChamps();
+    const groups  = againstPicks
+        .map(pickId => {
+            const counters = state.counterPicks[pickId] || [];
+            return { pickId, counters };
+        })
+        .filter(g => g.counters.length > 0);
+
+    if (!groups.length) {
+        section.style.display = againstPicks.length ? '' : 'none';
+        content.innerHTML = againstPicks.length
+            ? '<span class="draft-cp-none">No counter data set</span>'
+            : '';
+        return;
+    }
+
+    section.style.display = '';
+    content.innerHTML = groups.map(({ pickId, counters }) => {
+        const pick = getChamp(pickId);
+        const chips = counters.map(cid => {
+            const c = getChamp(cid);
+            if (!c) return '';
+            const off = unavail.has(cid);
+            return `<img class="draft-cp-chip ${off ? 'unavail' : ''}"
+                         src="${imgUrl(c)}" title="${c.name}"
+                         oncontextmenu="openCpPopover(event,'${cid}')"
+                         ${!off && draft.active ? `onclick="draftStageChamp('${cid}')"` : ''}>`;
+        }).join('');
+        return `<div class="draft-cp-group">
+            <div class="draft-cp-for">
+                ${pick ? `<img src="${imgUrl(pick)}" alt="${pick.name}"> ${pick.name}` : pickId}
+            </div>
+            <div class="draft-cp-chips">${chips}</div>
+        </div>`;
+    }).join('');
 }
 
 // ─── Delegated saves ─────────────────────────────────────────────────────────
